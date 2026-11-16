@@ -108,5 +108,11 @@ export function readDraft(pages) {
     && len(t) >= 2 && len(t) <= 30 && !BAD.test(t) && !inferred.has(p)).map(([p, y, t]) => [p, y, t]);
   const tab = Object.entries(tabs).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   pgs.sort((a, b) => a - b);
-  return { Z, pages: pgs, heads: headsF, headsMain, abbrs, boxes, titles, labels, abbrTable, tobiraPage, tablePages, inferred, tab };
+  // 大見出しで2行に分かれたもの（「歯内療法」＋「早見表」）をつないだもの
+  const titlesJoined = [];
+  for (const [p, y, t] of titles) {
+    const q = titlesJoined[titlesJoined.length - 1];
+    if (q && q[0] === p && y - q[3] > 0 && y - q[3] <= 45) { q[2] += t; q[3] = y; } else titlesJoined.push([p, y, t, y]);
+  }
+  return { Z, pages: pgs, heads: headsF, headsMain, abbrs, boxes, titles, titlesJoined: titlesJoined.map(([p, y, t]) => [p, y, t]), labels, abbrTable, tobiraPage, tablePages, inferred, tab };
 }

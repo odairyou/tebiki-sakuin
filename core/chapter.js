@@ -329,6 +329,20 @@ export class Chapter {
         this.newBot.push(b2);
       }
     }
+    // 早見表：大見出しの「○○早見表」のうち、前回の索引の早見表の行がまだ拾っていないもの
+    const hayamiDone = new Set([...this.TOP, ...this.BOT.flat()].filter(r => r.text.includes('早見表') && r.newp.length).flatMap(r => r.newp));
+    const hseen = new Set();
+    for (const [p, y, t0] of (R.titlesJoined || [])) {
+      const t = nz(t0);
+      if (!t.includes('早見表') || hayamiDone.has(p) || hseen.has(t) || known(t)) continue;
+      hseen.add(t);
+      const disp = t.replace(/\(/g, '（').replace(/\)/g, '）');
+      const note = `新原稿の大見出し「${disp}」。前回の索引に無い早見表`;
+      this.newTop.push({ text: '（早見表）', sub: true, oldp: [], newp: [p], other: [], st: 'new', note: note + '（扉では見出しの下の副項目として入れた）', new: true, hayami: true });
+      const [yv, gs] = this.Y.get(disp);
+      this.newBot.push([{ text: disp, sub: false, oldp: [], newp: [p], other: [], st: 'new', new: true, yomi: yv, yflag: gs,
+        note: note + (gs.length ? '。読みの「' + gs.join('」「') + '」は自動推定（要確認）' : '') }]);
+    }
     const exist = new Set(this.BOT.map(b => nz(b[0].text)));
     this.newBot = this.newBot.filter(b => !exist.has(nz(b[0].text)));
     for (const [p, y, a, par] of abbrs) {
@@ -343,6 +357,18 @@ export class Chapter {
     let TOP = this.TOP;
     const oldM = this.tob.filter(e => !e.sub).length, oldS = this.tob.filter(e => e.sub).length;
     this.subMode = oldS / Math.max(oldM, 1) >= 5;
+    // 早見表：ページ順で直前の扉の主項目の副項目に入れる
+    for (const c of this.newTop) {
+      if (!c.hayami) continue;
+      const p = c.newp[0];
+      const idx = TOP.map((r, i) => i).filter(i => !TOP[i].sub && TOP[i].newp.length && TOP[i].newp[0] <= p && TOP[i].st !== 'chk');
+      const i = idx.length ? idx.reduce((b, i) => (TOP[i].newp[0] > TOP[b].newp[0] || (TOP[i].newp[0] === TOP[b].newp[0] && i > b)) ? i : b, idx[0]) : -1;
+      if (i < 0) { TOP.unshift({ ...c, sub: false, text: c.note.match(/「(.*?)」/)[1] }); continue; }
+      c.note = '「' + TOP[i].text + '」の副項目として入れた。' + c.note.replace('（扉では見出しの下の副項目として入れた）', '');
+      let j = i + 1, k = i + 1;
+      while (j < TOP.length && TOP[j].sub) { if (TOP[j].newp.length && TOP[j].newp[0] <= p) k = j + 1; j++; }
+      TOP.splice(k, 0, c);
+    }
     for (const c of this.newTop) {
       if (c.sub) continue;
       const p = c.newp[0];
@@ -360,6 +386,7 @@ export class Chapter {
     }
     const newsub = new Map(); let last = null;
     for (const c of this.newTop) {
+      if (c.hayami) continue;
       if (c.asSub) last = null;
       else if (!c.sub) last = c.text;
       else if (last) { if (!newsub.has(last)) newsub.set(last, []); newsub.get(last).push(c); }
