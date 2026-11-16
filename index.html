@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手引き索引ツール</title>
+<link rel="stylesheet" href="app.css">
+<script src="lib/exceljs.min.js"></script>
+<script src="lib/kuromoji/kuromoji.js"></script>
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <a href="#home" class="brand">手引き索引ツール</a>
+    <span class="lock">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+      ファイルはこのパソコンの中だけで処理されます
+    </span>
+  </div>
+</header>
+
+<!-- ホーム -->
+<main class="wrap screen" id="s-home" hidden>
+  <h1>何をしますか？</h1>
+  <section class="cards">
+    <a href="#prepare" class="card">
+      <span class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10"></path><path d="M4 17h6"></path><circle cx="17" cy="7" r="3"></circle><circle cx="13" cy="17" r="3"></circle><path d="M16 17h4"></path></svg></span>
+      <span class="ct">設定</span>
+      <span class="cd">前回の索引と読みを取り込みます。改定のはじめに1回。</span>
+      <span class="cf">前回の完成品PDF ＋ 引き継ぎファイル</span>
+      <span class="cs" id="home-status"></span>
+    </a>
+    <a href="#chapter" class="card">
+      <span class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6"></path><path d="M9 15l2 2 4-4"></path></svg></span>
+      <span class="ct">確認用データを出す</span>
+      <span class="cd">新原稿のPDFを入れると、打合せ用のExcelが出ます。</span>
+      <span class="cf">新原稿PDF → 作業Excel</span>
+    </a>
+    <a href="#output" class="card">
+      <span class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4z"></path></svg></span>
+      <span class="ct">業者に渡すデータを出す</span>
+      <span class="cd">判定済みのExcelから、扉ページと巻末索引を出します。</span>
+      <span class="cf">判定済みExcel → 業者渡しExcel</span>
+    </a>
+  </section>
+</main>
+
+<!-- 設定 -->
+<main class="wrap screen" id="s-prepare" hidden>
+  <a href="#home" class="back">← ホームに戻る</a>
+  <div class="head">
+    <h1>設定</h1>
+    <p>前回の手引きの索引を取り込みます。共有フォルダ「手引き索引」の中の、いちばん新しい年版のフォルダにあります。</p>
+  </div>
+  <div class="current" id="prep-current" hidden></div>
+  <section class="two">
+    <div class="drop" data-input="prep-pdf">
+      <span class="badge req">必須</span>
+      <span class="dt">前回の完成品のPDF</span>
+      <span class="dd">印刷された手引きのPDF。扉ページと巻末索引の語・ページはここから読みます</span>
+      <span class="picked" id="prep-pdf-name"></span>
+      <input id="prep-pdf" type="file" accept=".pdf" hidden>
+    </div>
+    <div class="drop" data-input="prep-xls">
+      <span class="badge opt">あれば</span>
+      <span class="dt">引き継ぎファイル</span>
+      <span class="dd">前回の最後にツールが出したExcel（名前が「引き継ぎ_」で始まるもの。例：引き継ぎ_●●●●年版.xlsx）。無ければ、前回の索引作業のExcel（語と読みの列があるもの）でも可</span>
+      <span class="picked" id="prep-xls-name"></span>
+      <input id="prep-xls" type="file" accept=".xlsx" hidden>
+    </div>
+  </section>
+  <div class="warnbox">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
+    <span>引き継ぎファイルが無くても進めます。その場合、前回の完成品のPDFには読みが載っていないので、前回からある語の読みもツールの推定になります（作業Excelで橙色の字になります）。</span>
+  </div>
+  <div class="progress" id="prep-progress" hidden></div>
+  <button type="button" class="primary" id="prep-go" disabled>取り込む</button>
+</main>
+
+<!-- 確認用データ -->
+<main class="wrap screen" id="s-chapter" hidden>
+  <a href="#home" class="back">← ホームに戻る</a>
+  <div class="head">
+    <h1>確認用データを出す</h1>
+    <p>新原稿のPDFを入れると、章ごとに打合せ用のExcel（上＝扉、下＝巻末）が出ます。何章分でもまとめて入れられます。施設基準の章のPDFも一緒に入れると、（施設基準）の行のページを仮に入れます。</p>
+  </div>
+  <div class="need" id="ch-need" hidden>先に「設定」で前回の索引を取り込んでください。<a href="#prepare">設定へ</a></div>
+  <div class="drop big" data-input="ch-files">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 20h16"></path></svg>
+    <span class="dt">新原稿のPDF</span>
+    <span class="dd">ここにドロップ、またはクリックして選ぶ（複数可）</span>
+    <input id="ch-files" type="file" accept=".pdf,.xlsx" multiple hidden>
+  </div>
+  <details class="more">
+    <summary>原稿が変わったので作り直すとき</summary>
+    <p>前に出して判定を書き込んだExcelも一緒に入れてください。判定と打合せメモ、人が足した行はそのまま残して、ページだけ新しい原稿に合わせます。ページが変わった行には色を付けます。</p>
+  </details>
+  <div class="sis" id="ch-sis"></div>
+  <div class="progress" id="ch-progress" hidden></div>
+  <section class="results" id="ch-results" hidden>
+    <div class="rhead"><span>できたファイル</span><button type="button" class="ghost" id="ch-all">まとめてダウンロード</button></div>
+    <div id="ch-list"></div>
+  </section>
+</main>
+
+<!-- 業者に渡すデータ -->
+<main class="wrap screen" id="s-output" hidden>
+  <a href="#home" class="back">← ホームに戻る</a>
+  <div class="head">
+    <h1>業者に渡すデータを出す</h1>
+    <p>判定済みのExcelを入れてください。業者に渡すExcelには、項目とページだけが入ります。</p>
+  </div>
+  <div class="need" id="out-need" hidden>先に「設定」で前回の索引を取り込んでください。<a href="#prepare">設定へ</a></div>
+  <section class="two cols-top">
+    <div class="col">
+      <h2>扉ページ（章ごと）</h2>
+      <div class="drop" data-input="out-tob">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 20h16"></path></svg>
+        <span class="dt">その章の判定済みExcel</span>
+        <span class="dd">確認の終わった章から、1章ずつでも</span>
+        <input id="out-tob" type="file" accept=".xlsx" multiple hidden>
+      </div>
+      <div id="out-tob-res" class="stack"></div>
+    </div>
+    <div class="col">
+      <h2>巻末索引（全体）</h2>
+      <div class="drop" data-input="out-kan">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 20h16"></path></svg>
+        <span class="dt">その時点の判定済みExcelを全部</span>
+        <span class="dd">施設基準の章のPDFも一緒に</span>
+        <input id="out-kan" type="file" accept=".xlsx,.pdf" multiple hidden>
+      </div>
+      <div class="progress" id="out-progress" hidden></div>
+      <div id="out-kan-res" class="stack"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span>手引き索引ツール <span id="ver"></span></span>
+  <a href="#" id="forget">このパソコンに覚えた設定を消す</a>
+</footer>
+</body>
+</html>
