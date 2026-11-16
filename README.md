@@ -25,7 +25,7 @@
 
 1. GitHub で新しいリポジトリを作る（例：`tebiki-sakuin`、Public）。
 2. このフォルダの中身をすべてアップロードする（`index.html` がリポジトリのいちばん上に来るように）。
-   ブラウザの「Add file → Upload files」は1回100ファイルまでなので、`lib/pdfjs/cmaps` フォルダを先に、残りをあとからの2回に分けて入れてください。GitHub Desktop を使う場合は1回で入ります。
+   ブラウザの「Add file → Upload files」は1回100ファイルまでなので、`pdfjs` フォルダと、それ以外の2回に分けて入れてください。GitHub Desktop を使う場合は1回で入ります。
 3. リポジトリの Settings → Pages で、Source を「Deploy from a branch」、Branch を `main` / `(root)` にして Save。
 4. 数分後に表示される `https://（アカウント名）.github.io/tebiki-sakuin/` を開くと使えます。
 
@@ -36,4 +36,4 @@
 
 - `index.html` `app.js` `app.css` … 画面
 - `core/` … 処理の本体（PDFの読み取り、前回の索引との照合、Excelの書き出し・読み戻し、業者データ）
-- `lib/` … 使っているライブラリ（pdf.js、ExcelJS、kuromoji と辞書）。ライセンスは `THIRD_PARTY_NOTICES.md`
+- `pdfjs/` `kuromoji/` `exceljs.min.js` … 使っているライブラリ（pdf.js、kuromoji と辞書、ExcelJS）。ライセンスは `THIRD_PARTY_NOTICES.md`

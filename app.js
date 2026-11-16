@@ -12,11 +12,11 @@ $('ver').textContent = 'ver ' + TOOL_VER;
 let envP = null;
 function getEnv() {
   if (!envP) envP = (async () => {
-    const pdfjs = await import('./lib/pdfjs/pdf.min.mjs');
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL('lib/pdfjs/pdf.worker.min.mjs', location.href).href;
+    const pdfjs = await import('./pdfjs/pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs/pdf.worker.min.mjs', location.href).href;
     return {
       pdfjs, ExcelJS: window.ExcelJS, tokenizer: null,
-      pdfOpt: { cMapUrl: new URL('lib/pdfjs/cmaps/', location.href).href, standardFontDataUrl: new URL('lib/pdfjs/standard_fonts/', location.href).href },
+      pdfOpt: { cMapUrl: new URL('pdfjs/cmaps/', location.href).href, standardFontDataUrl: new URL('pdfjs/standard_fonts/', location.href).href },
     };
   })();
   return envP;
@@ -24,7 +24,7 @@ function getEnv() {
 let tkP = null;
 function getTokenizer() {   // 読みの推定に使う辞書（はじめの1回だけ少し時間がかかる）
   if (!tkP) tkP = new Promise(res => {
-    try { window.kuromoji.builder({ dicPath: 'lib/kuromoji/dict/' }).build((err, tk) => res(err ? null : tk)); }
+    try { window.kuromoji.builder({ dicPath: 'kuromoji/dict/' }).build((err, tk) => res(err ? null : tk)); }
     catch (e) { res(null); }
   });
   return tkP;
