@@ -149,7 +149,9 @@ export async function writeHandover(ExcelJS, M, works, edition) {
   const b = wb.addWorksheet('載せない');
   b.getColumn(1).width = 24; b.getColumn(2).width = 8; b.getColumn(3).width = 60; b.getColumn(4).width = 50;
   b.addRow(['章', '区分', '語', '打合せメモ']); b.getRow(1).font = { bold: true };
-  for (const W of works) for (const r of [...W.up, ...W.low]) if (r.dec === '載せない' && (r.stLabel || '').startsWith('＋')) b.addRow([W.meta.short || '', r.sec, r.text, r.memo || null]);
+  // 打合せメモのうち【Claude案】の書き込みは引き継がない（人の判断の記録だけ残す）
+  const ownMemo = m => String(m || '').split(/(?=【Claude)/).filter(x => !x.startsWith('【Claude')).join('').trim() || null;
+  for (const W of works) for (const r of [...W.up, ...W.low]) if (r.dec === '載せない' && (r.stLabel || '').startsWith('＋')) b.addRow([W.meta.short || '', r.sec, r.text, ownMemo(r.memo)]);
   const info = wb.addWorksheet('_info', { state: 'veryHidden' });
   [['tool', '手引き索引ツール'], ['kind', '引き継ぎ'], ['edition', edition || '']].forEach((x, i) => { info.getCell(i + 1, 1).value = x[0]; info.getCell(i + 1, 2).value = x[1]; });
   return await wb.xlsx.writeBuffer();
