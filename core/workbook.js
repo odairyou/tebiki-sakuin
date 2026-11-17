@@ -1,7 +1,7 @@
 // 作業Excel（上下2段：上＝扉、下＝巻末）の書き出しと読み戻し
 import { nz } from './pdftext.js';
 
-export const TOOL_VER = '1.6';
+export const TOOL_VER = '1.7';
 export const LAB = { ok: '○ 特定', chk: '？ 要確認', ng: '× 見つからず', new: '＋ 新規候補', auto: '－ 自動', head: '－ 親見出し', kari: '△ 仮（施設基準）', claude: '◆ Claude案' };
 const STC = { '○': '375623', '？': '7F6000', '×': 'A61C28', '＋': '1F4E79', '－': '999999', '△': 'C55A11', '◆': '7030A0' };
 const SECC = { '扉': ['1F4E79', 'DDEBF7'], '索引': ['375623', 'E2EFDA'] };
@@ -97,10 +97,11 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
   for (let i = r0; i <= lowbanner - 2; i++) ws.getRow(i).outlineLevel = 1;
   for (let i = lowstart; i <= lowend; i++) ws.getRow(i).outlineLevel = 1;
   const END = lowend + 200;
-  ws.dataValidations.add(`K${r0}:K${END}`, { type: 'list', allowBlank: true, formulae: ['"載せる,載せない"'], showErrorMessage: true, errorTitle: '今回の掲載', error: '「載せる」か「載せない」を選んでください' });
+  ws.dataValidations.add(`K${r0}:K${END}`, { type: 'list', allowBlank: true, formulae: ['"載せる,載せない,役員確認"'], showErrorMessage: true, errorTitle: '今回の掲載', error: '「載せる」「載せない」「役員確認」のどれかを選んでください' });
   let prio = 1;
   const cf = (ref, formula, style, stop = false) => ws.addConditionalFormatting({ ref, rules: [{ type: 'expression', formulae: [formula], style, stopIfTrue: stop, priority: prio++ }] });
   cf(`B${r0}:M${END}`, `$K${r0}="載せない"`, { font: { color: { argb: 'FFA6A6A6' }, strike: true }, fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF2F2F2' } } }, true);
+  cf(`K${r0}:K${END}`, `$K${r0}="役員確認"`, { font: { color: { argb: 'FF7F6000' }, bold: true }, fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFE699' } } }, true);
   for (const [ch, col] of [['？', 'FFF2CC'], ['×', 'F8D7DA'], ['＋', 'DDEBF7'], ['◆', 'E4DFEC']])
     cf(`B${r0}:J${END}`, `AND($K${r0}="",LEFT($J${r0},1)="${ch}")`, { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: argb(col) } } });
   cf(`B${r0}:K${END}`, `AND($C${r0}<>"",$J${r0}="",$K${r0}="")`, { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFCE4D6' } } });
@@ -129,18 +130,21 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
     });
     const d = g.getCell(rr, 5); d.value = t; d.font = F(); d.alignment = { wrapText: true, vertical: 'middle' }; g.getRow(rr).height = 30;
   });
-  g.getCell('B12').value = '「今回の掲載」を選ぶとその行の色が消えます。件数がすべて0になれば、この章は完了です。'; g.getCell('B12').font = F({ bold: true, color: 'BF8F00' });
+  g.getCell('B12').value = '「今回の掲載」を選ぶとその行の色が消えます。件数がすべて0になれば、事務局の判断は完了です。'; g.getCell('B12').font = F({ bold: true, color: 'BF8F00' });
+  g.getCell('B13').value = { formula: `"役員確認（役員の返事待ち）："&COUNTIF(${sh}!$K:$K,"役員確認")&"行　― 返事が来たら「載せる」か「載せない」に変えます"` };
+  g.getCell('B13').font = F({ bold: true, color: '7F6000' });
   const secs = [['上下の見方', ['No は扉と索引で共通です。扉のNo.3の語は、索引でもNo.3の行にまとまっています。Noが変わるところに太線が入ります。',
       'シート最上段の「▲扉ページへ」「▼索引へ」で、それぞれの段の先頭へ飛べます。左端の「－」で段ごと折りたためます。',
       '「前回の掲載」は前回の手引きでどこに載っていたか（両方／扉のみ／巻末のみ／—＝前回なし）。',
       '扉には載せず巻末だけに載せるときは、上の段を「載せない」、下の段を「載せる」にします。',
+      '事務局で決めきれない行は「役員確認」にします。打合せメモに書いた内容が、役員確認用のExcelの「事務局より」の欄に出ます。ページは空でも構いません。',
       'ページを空けておきたい（あとで業者に入れてもらう）ときは、今回Pに「●●」と書きます。']],
     ['行を足すとき', ['空の行を挿入して、語（索引の段は読みも）・今回Pを書き、「今回の掲載」を選びます。No・ツールの判定は空欄でOK。',
       '既存の行をコピーして作った場合は、「ツールの判定」「ツールのメモ」を消してください。',
       '索引の段の副項目（カッコの行）は「すぐ上の主項目の子」になります。主項目は前の項目の副項目の途中に挟まないでください。']],
     ['（施設基準）の行', ['「△ 仮（施設基準）」は、施設基準の章の原稿から見つけたページを仮に入れたものです。業者に渡すデータを作るとき、施設基準の章の最新の原稿でもう一度入れ直します（手でページを直した行は、そのページを使います）。',
       '施設基準の章で見つからなかったものは「× 見つからず」になっています。']]];
-  let rr = 14;
+  let rr = 15;
   for (const [t0, items] of secs) {
     g.getCell(rr, 2).value = t0; g.getCell(rr, 2).font = F({ size: 12, bold: true }); rr++;
     for (const t of items) {

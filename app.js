@@ -226,6 +226,26 @@ $('ch-all').addEventListener('click', async () => {
   download(`索引作業_${ymd}.zip`, zip, 'application/zip');
 });
 
+// ---------- 役員確認用
+setupDrop(document.querySelector('[data-input="of-files"]'), async files => {
+  const res = $('of-res'); const env = await getEnv();
+  for (const f of files.filter(isXlsx)) {
+    try {
+      const W = await P.readWork(env.ExcelJS, (await readFile(f)).data);
+      const ch = W.meta.title || W.meta.short || f.name;
+      const c = P.checkOfficer(W);
+      if (c.undecided.length) {
+        const b = box('ng', `${ch}：まだ出せません`, [esc(`「今回の掲載」が空の行が${c.undecided.length}行あります。「載せる」「載せない」「役員確認」のどれかを選んでください`)]);
+        b.append(listDetails('空の行を見る', c.undecided.map(r => `${r.row}行目　${r.sec}　${r.text}`)));
+        res.prepend(b); continue;
+      }
+      const O = await P.writeOfficer(env.ExcelJS, W);
+      const name = `索引確認_${String(W.meta.idx).padStart(2, '0')}${W.meta.short || ''}.xlsx`;
+      res.prepend(box('ok', `${ch}：役員確認用を出しました`, [`扉 ${O.up}行・索引 ${O.low}行。うち「役員確認」${O.asking}行`], dlLink(name, O.buf, name)));
+    } catch (e) { res.prepend(box('ng', `${f.name}：読めませんでした`, [esc(errText(e))])); }
+  }
+});
+
 // ---------- 業者に渡すデータ
 setupDrop(document.querySelector('[data-input="out-tob"]'), async files => {
   if (!SETTINGS) { alert('先に「設定」で前回の索引を取り込んでください。'); return; }
@@ -242,9 +262,11 @@ setupDrop(document.querySelector('[data-input="out-tob"]'), async files => {
       } else {
         const lines = [];
         if (c.undecided.length) lines.push(`まだ決まっていない行が${c.undecided.length}行あるため、出せません`);
+        if (c.asking.length) lines.push(`「役員確認」のままの行が${c.asking.length}行あります（返事が来たら「載せる」か「載せない」に変えてください）`);
         if (c.noPage.length) lines.push(`「載せる」なのにページが空の行が${c.noPage.length}行あります（あとで入れる場合は「●●」と書いてください）`);
         const b = box('ng', `${ch}：まだ出せません`, lines.map(esc));
         if (c.undecided.length) b.append(listDetails(`まだ決まっていない${c.undecided.length}行を見る`, c.undecided.map(r => `${r.row}行目　${r.text}`)));
+        if (c.asking.length) b.append(listDetails(`役員確認の${c.asking.length}行を見る`, c.asking.map(r => `${r.row}行目　${r.text}`)));
         if (c.noPage.length) b.append(listDetails(`ページが空の${c.noPage.length}行を見る`, c.noPage.map(r => `${r.row}行目　${r.text}`)));
         res.prepend(b);
       }

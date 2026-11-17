@@ -84,24 +84,39 @@
   <a href="#home" class="back">← ホームに戻る</a>
   <div class="head">
     <h1>確認用データを出す</h1>
-    <p>新原稿のPDFを入れると、章ごとに打合せ用のExcel（上＝扉、下＝巻末）が出ます。何章分でもまとめて入れられます。施設基準の章のPDFも一緒に入れると、（施設基準）の行のページを仮に入れます。</p>
+    <p>①新原稿のPDFを入れると、章ごとに事務局用の作業Excel（上＝扉、下＝巻末）が出ます。②事務局で判断を終えたら、その作業Excelから役員に配る確認用Excelを出します。</p>
   </div>
   <div class="need" id="ch-need" hidden>先に「設定」で前回の索引を取り込んでください。<a href="#prepare">設定へ</a></div>
-  <div class="drop big" data-input="ch-files">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 20h16"></path></svg>
-    <span class="dt">新原稿のPDF</span>
-    <span class="dd">ここにドロップ、またはクリックして選ぶ（複数可）</span>
-    <input id="ch-files" type="file" accept=".pdf,.xlsx" multiple hidden>
-  </div>
-  <details class="more">
-    <summary>原稿が変わったので作り直すとき</summary>
-    <p>前に出して判定を書き込んだExcelも一緒に入れてください。判定と打合せメモ、人が足した行はそのまま残して、ページだけ新しい原稿に合わせます。ページが変わった行には色を付けます。</p>
-  </details>
-  <div class="sis" id="ch-sis"></div>
-  <div class="progress" id="ch-progress" hidden></div>
-  <section class="results" id="ch-results" hidden>
-    <div class="rhead"><span>できたファイル</span><button type="button" class="ghost" id="ch-all">まとめてダウンロード（zip）</button></div>
-    <div id="ch-list"></div>
+  <section class="two cols-top">
+    <div class="col">
+      <h2>① 作業Excel（事務局用）</h2>
+      <div class="drop" data-input="ch-files">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 20h16"></path></svg>
+        <span class="dt">新原稿のPDF</span>
+        <span class="dd">ここにドロップ、またはクリックして選ぶ（複数可）。施設基準の章のPDFも一緒に</span>
+        <input id="ch-files" type="file" accept=".pdf,.xlsx" multiple hidden>
+      </div>
+      <details class="more">
+        <summary>原稿が変わったので作り直すとき</summary>
+        <p>前に出して判定を書き込んだExcelも一緒に入れてください。判定と打合せメモ、人が足した行はそのまま残して、ページだけ新しい原稿に合わせます。ページが変わった行には色を付けます。</p>
+      </details>
+      <div class="sis" id="ch-sis"></div>
+      <div class="progress" id="ch-progress" hidden></div>
+      <section class="results" id="ch-results" hidden>
+        <div class="rhead"><span>できたファイル</span><button type="button" class="ghost" id="ch-all">まとめてダウンロード（zip）</button></div>
+        <div id="ch-list"></div>
+      </section>
+    </div>
+    <div class="col">
+      <h2>② 役員確認用（章ごと）</h2>
+      <div class="drop" data-input="of-files">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 20h16"></path></svg>
+        <span class="dt">事務局で判断を終えた作業Excel</span>
+        <span class="dd">「今回の掲載」を全部選び終えた章のExcelを入れると、役員に配る確認用Excelが出ます（複数可）</span>
+        <input id="of-files" type="file" accept=".xlsx" multiple hidden>
+      </div>
+      <div id="of-res" class="stack"></div>
+    </div>
   </section>
 </main>
 

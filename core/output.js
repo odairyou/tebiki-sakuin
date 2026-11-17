@@ -3,15 +3,16 @@ import { nz } from './pdftext.js';
 import { pagesText, cellText } from './workbook.js';
 import { hira } from './yomi.js';
 
-const isUndecided = r => !r.dec;
+const isUndecided = r => !r.dec || r.dec === '役員確認';   // 役員確認は返事待ち＝まだ決まっていない扱い
 const isOn = r => r.dec === '載せる';
 const pageOrder = (a, b) => (typeof a === 'number' && typeof b === 'number') ? a - b : (typeof a === 'number' ? -1 : (typeof b === 'number' ? 1 : String(a).localeCompare(String(b))));
 
 // ---- 扉ページ
 export function checkTobira(W) {
-  const undecided = W.up.filter(isUndecided);
+  const undecided = W.up.filter(r => !r.dec);
+  const asking = W.up.filter(r => r.dec === '役員確認');
   const noPage = W.up.filter(r => isOn(r) && !r.pages.length);
-  return { undecided, noPage, ok: !undecided.length && !noPage.length };
+  return { undecided, asking, noPage, ok: !undecided.length && !asking.length && !noPage.length };
 }
 export async function writeTobira(ExcelJS, W) {
   const wb = new ExcelJS.Workbook();
@@ -58,7 +59,7 @@ export function mergeKanmatsu(works, ctx) {
     const ch = W.meta.short || W.meta.title || W.file;
     let cur = null;
     for (const r of W.low) {
-      if (isUndecided(r)) { undecided++; undecidedRows.push(`${ch}：${r.text}`); }
+      if (isUndecided(r)) { undecided++; undecidedRows.push(`${ch}：${r.text}` + (r.dec === '役員確認' ? '（役員確認）' : '')); }
       if (!r.sub) {
         const k = nz(r.text);
         if (!byMain.has(k)) { byMain.set(k, { text: r.text, yomi: '', pages: [], subs: [], subKey: new Map(), on: false, chapters: new Set(), pending: [] }); order.push(k); }
@@ -155,4 +156,52 @@ export async function writeHandover(ExcelJS, M, works, edition) {
   const info = wb.addWorksheet('_info', { state: 'veryHidden' });
   [['tool', '手引き索引ツール'], ['kind', '引き継ぎ'], ['edition', edition || '']].forEach((x, i) => { info.getCell(i + 1, 1).value = x[0]; info.getCell(i + 1, 2).value = x[1]; });
   return await wb.xlsx.writeBuffer();
+}
+
+// ---- 役員確認用（章ごと）：「載せる」「役員確認」の行だけ。列は ★・語・今回P・前回P・事務局より
+export function checkOfficer(W) {
+  return { undecided: [...W.up, ...W.low].filter(r => !r.dec) };
+}
+export async function writeOfficer(ExcelJS, W) {
+  const wb = new ExcelJS.Workbook();
+  const JP = '游ゴシック', title = W.meta.title || W.meta.short || '';
+  const thin = { style: 'thin', color: { argb: 'FF999999' } }, B = { left: thin, right: thin, top: thin, bottom: thin };
+  const ownMemo = m => String(m || '').split(/(?=【Claude)/).filter(x => !x.startsWith('【Claude')).join('').trim();
+  const isNum = p => typeof p === 'number' || /^\d+$/.test(String(p));
+  let asking = 0;
+  for (const [sec, name, label] of [['扉', '扉ページ', '扉ページ（この章のはじめのページ）'], ['索引', '巻末索引', '巻末索引（この章の分）']]) {
+    const rows = (sec === '扉' ? W.up : W.low).filter(r => r.dec === '載せる' || r.dec === '役員確認');
+    const ws = wb.addWorksheet(name, { views: [{ showGridLines: false }] });
+    [5, 60, 11, 11, 44].forEach((w, i) => ws.getColumn(i + 1).width = w);
+    ws.getCell('A1').value = `索引 確認のお願い　${title}　― ${label}`; ws.getCell('A1').font = { name: JP, size: 15, bold: true };
+    ws.getCell('A2').value = '全体をご確認ください。ページの誤り・言い回しの直し・足りない語は、該当する箇所に赤で直接書き込んでください。';
+    ws.getCell('A3').value = '★の行は、事務局で判断がつかず、特にご意見をいただきたい行です（「事務局より」をご覧ください）。　提出：　　月　　日（　）まで';
+    for (const a of ['A2', 'A3']) ws.getCell(a).font = { name: JP, size: 10 };
+    ['', '語', '今回P', '前回P', '事務局より'].forEach((h, j) => {
+      const c = ws.getCell(5, j + 1); c.value = h || null; c.font = { name: JP, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF404040' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = B;
+    });
+    ws.getRow(5).height = 20;
+    let rn = 6;
+    for (const r of rows) {
+      const ask = r.dec === '役員確認'; if (ask) asking++;
+      const sub = /^[（(]/.test(r.text);
+      const pg = r.pages.length ? r.pages.join('・') : (ask ? 'なし' : (/\d/.test(r.oldp) ? '他の章' : ''));
+      const old = String(r.oldp || '').trim() || '—';
+      const vals = [ask ? '★' : null, r.text, pg, old, ask ? (ownMemo(r.memo) || null) : null];
+      vals.forEach((v, j) => {
+        const c = ws.getCell(rn, j + 1); c.value = (j === 2 && isNum(v)) ? +v : v; c.border = B;
+        c.font = { name: JP, size: 11, bold: (j === 1 && !sub) || j === 0, color: { argb: j === 0 ? 'FFB8860B' : (j === 2 && !r.pages.length ? 'FF808080' : 'FF000000') } };
+        c.alignment = { vertical: 'middle', wrapText: j === 1 || j === 4, horizontal: [0, 2, 3].includes(j) ? 'center' : 'left', indent: j === 1 && sub ? 2 : 0 };
+        if (ask) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+      });
+      ws.getRow(rn).height = 30; rn++;
+    }
+    if (!rows.length) { ws.getCell(rn, 2).value = '（この章で載せる語はありません）'; ws.getCell(rn, 2).font = { name: JP, size: 11, color: { argb: 'FF808080' } }; }
+    ws.pageSetup = { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '5:5',
+      margins: { left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 } };
+    ws.headerFooter.oddFooter = `&C${title}　${name}　&P / &N`;
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  return { buf, asking, up: W.up.filter(r => r.dec === '載せる' || r.dec === '役員確認').length, low: W.low.filter(r => r.dec === '載せる' || r.dec === '役員確認').length };
 }
