@@ -1,7 +1,7 @@
 // 作業Excel（上下2段：上＝扉、下＝巻末）の書き出しと読み戻し
 import { nz } from './pdftext.js';
 
-export const TOOL_VER = '1.7';
+export const TOOL_VER = '1.8';
 export const LAB = { ok: '○ 特定', chk: '？ 要確認', ng: '× 見つからず', new: '＋ 新規候補', auto: '－ 自動', head: '－ 親見出し', kari: '△ 仮（施設基準）', claude: '◆ Claude案' };
 const STC = { '○': '375623', '？': '7F6000', '×': 'A61C28', '＋': '1F4E79', '－': '999999', '△': 'C55A11', '◆': '7030A0' };
 const SECC = { '扉': ['1F4E79', 'DDEBF7'], '索引': ['375623', 'E2EFDA'] };
@@ -28,7 +28,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
     sec, no: r.no, sub: r.sub, text: r.new ? r.text : displayText(r.text, disp),
     yomi: sec === '索引' && !r.sub ? (r.yomi || '') : '', yflag: sec === '索引' ? (r.yflag || []) : [],
     pages: [...r.newp], oldp: r.oldp, prev: r.prev, st: r.st, note: r.note || '', first: r.first, isNew: r.new,
-    dec: ['ok', 'head', 'auto', 'kari'].includes(r.st) ? '載せる' : '', memo: r.memo || '',
+    dec: ['ok', 'head', 'auto', 'kari', 'chk'].includes(r.st) ? '載せる' : (['ng', 'new'].includes(r.st) ? '役員確認' : ''), memo: r.memo || '',
     id: { st: r.st, tp: [...r.newp], op: r.oldp, k: r.kijun ? 1 : 0, other: r.other || [] },
   });
   let up = C.TOP.map(r => mk(r, '扉')), low = C.LOW.map(r => mk(r, '索引'));
@@ -103,7 +103,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
   cf(`B${r0}:M${END}`, `$K${r0}="載せない"`, { font: { color: { argb: 'FFA6A6A6' }, strike: true }, fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF2F2F2' } } }, true);
   cf(`K${r0}:K${END}`, `$K${r0}="役員確認"`, { font: { color: { argb: 'FF7F6000' }, bold: true }, fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFE699' } } }, true);
   for (const [ch, col] of [['？', 'FFF2CC'], ['×', 'F8D7DA'], ['＋', 'DDEBF7'], ['◆', 'E4DFEC']])
-    cf(`B${r0}:J${END}`, `AND($K${r0}="",LEFT($J${r0},1)="${ch}")`, { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: argb(col) } } });
+    cf(`B${r0}:J${END}`, `LEFT($J${r0},1)="${ch}"`, { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: argb(col) } } });
   cf(`B${r0}:K${END}`, `AND($C${r0}<>"",$J${r0}="",$K${r0}="")`, { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFCE4D6' } } });
   ws.autoFilter = `A2:M${lowend}`;
   ws.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '2:2' };
@@ -112,32 +112,32 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
   [['A', 3], ['B', 16], ['C', 9], ['D', 9], ['E', 82]].forEach(([c, w]) => g.getColumn(c).width = w);
   g.getCell('B2').value = `索引 作業シート　${meta.title}`; g.getCell('B2').font = F({ size: 15, bold: true });
   g.getCell('B3').value = `上の段＝扉ページ（青）、下の段＝巻末の索引（緑）。前回の索引に、新原稿でのページを入れてあります。`; g.getCell('B3').font = F({ color: '595959' });
-  g.getCell('B5').value = 'まだ決めていない行'; g.getCell('B5').font = F({ size: 12, bold: true });
+  g.getCell('B5').value = 'ツールの判定ごとの行数'; g.getCell('B5').font = F({ size: 12, bold: true });
   ['ツールの判定', '扉', '索引', '意味・やること'].forEach((h, j) => { const c = g.getCell(6, 2 + j); c.value = h; c.font = F({ bold: true, color: 'FFFFFF' }); c.fill = fill('404040'); c.alignment = { horizontal: 'center' }; });
-  const leg = [['？ 要確認', 'FFF2CC', '語はあるがページに自信なし。どこを指すか決めて、合っていれば「載せる」、違えばページを直して「載せる」。'],
-    ['× 見つからず', 'F8D7DA', '新原稿に見つからない（削除・名前の変更・図の中など）。載せるならページを手で入れて「載せる」、やめるなら「載せない」。'],
-    ['＋ 新規候補', 'DDEBF7', '新原稿の見出し・略称で、前回の索引に無い語。載せるなら「載せる」、不要なら「載せない」。橙色の読みは自動推定の部分あり。'],
+  const leg = [['？ 要確認', 'FFF2CC', '語はあるがページに自信なし。最初は「載せる」。ページを確かめて、違えば直す。'],
+    ['× 見つからず', 'F8D7DA', '新原稿に見つからない（削除・名前の変更・図の中など）。最初は「役員確認」（役員に「前回あったが今回見当たらない」と聞く）。事務局で決められるなら「載せる」「載せない」に。'],
+    ['＋ 新規候補', 'DDEBF7', '新原稿の見出し・略称で、前回の索引に無い語。最初は「役員確認」（役員に「載せるか」と聞く）。事務局で決められるなら「載せる」「載せない」に。橙色の読みは自動推定の部分あり。'],
     ['（空欄）', 'FCE4D6', '人が追加した行で、まだ「今回の掲載」を選んでいないもの。'],
-    ['◆ Claude案', 'E4DFEC', 'Claude（AI）が新原稿を読んで提案した行（書き換え・追加の案）。採用なら「載せる」、元の行は「載せない」に。不要なら「載せない」。']];
+    ['◆ Claude案', 'E4DFEC', 'Claude（AI）が新原稿を読んで提案した行（書き換え・追加の案）。最初は空欄。採用なら「載せる」、元の行は「載せない」に。不要なら「載せない」。']];
   const sh = `'${q}'`;
   leg.forEach(([a, col, t], i) => {
     const rr = 7 + i; const c = g.getCell(rr, 2); c.value = a; c.fill = fill(col); c.font = F({ bold: true }); c.alignment = { horizontal: 'center', vertical: 'middle' };
     ['扉', '索引'].forEach((sec, k) => {
       let f;
       if (a === '（空欄）') f = k === 1 ? `COUNTIFS(${sh}!$A:$A,"",${sh}!$C:$C,"<>",${sh}!$J:$J,"",${sh}!$K:$K,"")-COUNTIFS(${sh}!$A:$A,"",${sh}!$C:$C,"語",${sh}!$K:$K,"")` : null;
-      else f = `COUNTIFS(${sh}!$A:$A,"${sec}",${sh}!$J:$J,B${rr},${sh}!$K:$K,"")`;
+      else f = `COUNTIFS(${sh}!$A:$A,"${sec}",${sh}!$J:$J,B${rr})`;
       const n = g.getCell(rr, 3 + k); n.value = f ? { formula: f } : '—'; n.font = F({ bold: true, size: 12 }); n.alignment = { horizontal: 'center', vertical: 'middle' };
     });
     const d = g.getCell(rr, 5); d.value = t; d.font = F(); d.alignment = { wrapText: true, vertical: 'middle' }; g.getRow(rr).height = 30;
   });
-  g.getCell('B12').value = '「今回の掲載」を選ぶとその行の色が消えます。件数がすべて0になれば、事務局の判断は完了です。'; g.getCell('B12').font = F({ bold: true, color: 'BF8F00' });
+  g.getCell('B12').value = '「今回の掲載」は最初から入れてあります。事務局で見直して、違うものだけ変えてください。空欄の行が無くなれば、役員確認用を出せます。'; g.getCell('B12').font = F({ bold: true, color: 'BF8F00' });
   g.getCell('B13').value = { formula: `"役員確認（役員の返事待ち）："&COUNTIF(${sh}!$K:$K,"役員確認")&"行　― 返事が来たら「載せる」か「載せない」に変えます"` };
   g.getCell('B13').font = F({ bold: true, color: '7F6000' });
   const secs = [['上下の見方', ['No は扉と索引で共通です。扉のNo.3の語は、索引でもNo.3の行にまとまっています。Noが変わるところに太線が入ります。',
       'シート最上段の「▲扉ページへ」「▼索引へ」で、それぞれの段の先頭へ飛べます。左端の「－」で段ごと折りたためます。',
       '「前回の掲載」は前回の手引きでどこに載っていたか（両方／扉のみ／巻末のみ／—＝前回なし）。',
       '扉には載せず巻末だけに載せるときは、上の段を「載せない」、下の段を「載せる」にします。',
-      '事務局で決めきれない行は「役員確認」にします。打合せメモに書いた内容が、役員確認用のExcelの「事務局より」の欄に出ます。ページは空でも構いません。',
+      '「役員確認」の行は、役員確認用のExcelで役員に聞きます。「事務局より」の欄には決まった文（前回あったが今回見当たらない／新しく出てきた語）と□の選択肢が出て、打合せメモに書いた内容はその後ろに足されます。ページは空でも構いません。',
       'ページを空けておきたい（あとで業者に入れてもらう）ときは、今回Pに「●●」と書きます。']],
     ['行を足すとき', ['空の行を挿入して、語（索引の段は読みも）・今回Pを書き、「今回の掲載」を選びます。No・ツールの判定は空欄でOK。',
       '既存の行をコピーして作った場合は、「ツールの判定」「ツールのメモ」を消してください。',

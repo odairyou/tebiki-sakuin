@@ -162,21 +162,56 @@ export async function writeHandover(ExcelJS, M, works, edition) {
 export function checkOfficer(W) {
   return { undecided: [...W.up, ...W.low].filter(r => !r.dec) };
 }
+// 役員確認の行に出す決まった文と□の選択肢。戻り値 {mark, lines:[説明…], choice, memo}
+export function officerMsg(r, sec) {
+  const lab = r.stLabel || '', note = r.note || '';
+  const ownMemo = String(r.memo || '').split(/(?=【Claude)/).filter(x => !x.startsWith('【Claude')).join('').trim();
+  const old = String(r.oldp || '').trim();
+  const put = sec === '扉' ? '扉に載せる' : '索引に載せる';
+  if (lab.startsWith('×')) {
+    const lines = [/\d/.test(old) ? `前回 p.${old} に掲載。今回の原稿では見当たりません。` : '今回の原稿では見当たりません。'];
+    let m = note.match(/よく似た「(.+?)」が p\.(\d+) にあり/) || note.match(/新原稿の「(.+?)」に名称変更かも/);
+    if (m) {
+      lines.push(`今回は「${m[1]}」${m[2] ? '（p.' + m[2] + '）' : ''}に変わった可能性があります。`);
+      return { mark: '無', lines, choice: '□ 外す　　□ 新しい名前で残す　　□ このまま残す（p.＿＿）', memo: ownMemo };
+    }
+    return { mark: '無', lines, choice: '□ 外す　　□ 残す（該当ページ p.＿＿）', memo: ownMemo };
+  }
+  if (lab.startsWith('＋')) {
+    let l;
+    if (note.includes('大見出し') && note.includes('早見表')) l = '新しく入った早見表です。';
+    else if (note.includes('施設基準') && note.includes('枠あり')) l = '今回の原稿で「施設基準 ➡P参照」が付いた項目です。';
+    else if (note.includes('左欄の見出し')) l = '今回の原稿で新しく見出しになった語です。';
+    else if (note.includes('略称')) { const m = note.match(/「([^」]+)」の略称/); l = '今回の原稿に新しく出てきた略称です。' + (m ? `（近くの見出し：「${m[1]}」）` : ''); }
+    else l = '今回の原稿で新しく見出しになった語です。';
+    const lines = [l];
+    const rn = note.match(/前回の「(.+?)」と同じ/);
+    if (rn) lines.push(`前回の「${rn[1]}」の名前が変わった可能性があります。`);
+    return { mark: '新', lines, choice: `□ ${put}　　□ 載せない`, memo: ownMemo };
+  }
+  return { mark: '★', lines: [], choice: `□ ${put}　　□ 載せない`, memo: ownMemo };
+}
+
 export async function writeOfficer(ExcelJS, W) {
   const wb = new ExcelJS.Workbook();
   const JP = '游ゴシック', title = W.meta.title || W.meta.short || '';
   const thin = { style: 'thin', color: { argb: 'FF999999' } }, B = { left: thin, right: thin, top: thin, bottom: thin };
-  const ownMemo = m => String(m || '').split(/(?=【Claude)/).filter(x => !x.startsWith('【Claude')).join('').trim();
   const isNum = p => typeof p === 'number' || /^\d+$/.test(String(p));
+  const MARKC = { '無': 'FFC00000', '新': 'FF1F4E79', '★': 'FFB8860B' };
+  const PER_LINE = 26;   // 「事務局より」の欄に1行で入るおよその字数
+  const nLines = t => String(t).split('\n').reduce((a, x) => a + Math.max(1, Math.ceil([...x].length / PER_LINE)), 0);
   let asking = 0;
   for (const [sec, name, label] of [['扉', '扉ページ', '扉ページ（この章のはじめのページ）'], ['索引', '巻末索引', '巻末索引（この章の分）']]) {
     const rows = (sec === '扉' ? W.up : W.low).filter(r => r.dec === '載せる' || r.dec === '役員確認');
+    const nAsk = rows.filter(r => r.dec === '役員確認').length; asking += nAsk;
     const ws = wb.addWorksheet(name, { views: [{ showGridLines: false }] });
-    [5, 60, 11, 11, 44].forEach((w, i) => ws.getColumn(i + 1).width = w);
+    [5, 50, 9, 9, 54].forEach((w, i) => ws.getColumn(i + 1).width = w);
     ws.getCell('A1').value = `索引 確認のお願い　${title}　― ${label}`; ws.getCell('A1').font = { name: JP, size: 15, bold: true };
     ws.getCell('A2').value = '全体をご確認ください。ページの誤り・言い回しの直し・足りない語は、該当する箇所に赤で直接書き込んでください。';
-    ws.getCell('A3').value = '★の行は、事務局で判断がつかず、特にご意見をいただきたい行です（「事務局より」をご覧ください）。　提出：　　月　　日（　）まで';
+    ws.getCell('A3').value = '印（無・新・★）の行は、特にご判断をお願いしたい行です。「事務局より」の□にレ点を入れてください。　提出：　　月　　日（　）まで';
     for (const a of ['A2', 'A3']) ws.getCell(a).font = { name: JP, size: 10 };
+    ws.getCell('A4').value = `このシートで判断をお願いする行：${nAsk}件　（無＝前回あって今回見当たらない語　新＝今回新しく出てきた語）`;
+    ws.getCell('A4').font = { name: JP, size: 10, bold: true, color: { argb: 'FF7F6000' } };
     ['', '語', '今回P', '前回P', '事務局より'].forEach((h, j) => {
       const c = ws.getCell(5, j + 1); c.value = h || null; c.font = { name: JP, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF404040' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = B;
@@ -184,18 +219,29 @@ export async function writeOfficer(ExcelJS, W) {
     ws.getRow(5).height = 20;
     let rn = 6;
     for (const r of rows) {
-      const ask = r.dec === '役員確認'; if (ask) asking++;
+      const ask = r.dec === '役員確認';
       const sub = /^[（(]/.test(r.text);
       const pg = r.pages.length ? r.pages.join('・') : (ask ? 'なし' : (/\d/.test(r.oldp) ? '他の章' : ''));
       const old = String(r.oldp || '').trim() || '—';
-      const vals = [ask ? '★' : null, r.text, pg, old, ask ? (ownMemo(r.memo) || null) : null];
+      const M = ask ? officerMsg(r, sec) : null;
+      let msg = null, h = 30;
+      if (M) {
+        const parts = [];
+        M.lines.forEach(l => parts.push({ text: l + '\n', font: { name: JP, size: 10, color: { argb: 'FF262626' } } }));
+        parts.push({ text: M.choice, font: { name: JP, size: 11, bold: true, color: { argb: 'FF000000' } } });
+        if (M.memo) parts.push({ text: '\n' + M.memo, font: { name: JP, size: 10, color: { argb: 'FF7F6000' } } });
+        msg = { richText: parts };
+        const all = [...M.lines, M.choice, ...(M.memo ? [M.memo] : [])].join('\n');
+        h = Math.max(36, nLines(all) * 15 + 10);
+      }
+      const vals = [ask ? M.mark : null, r.text, pg, old, msg];
       vals.forEach((v, j) => {
         const c = ws.getCell(rn, j + 1); c.value = (j === 2 && isNum(v)) ? +v : v; c.border = B;
-        c.font = { name: JP, size: 11, bold: (j === 1 && !sub) || j === 0, color: { argb: j === 0 ? 'FFB8860B' : (j === 2 && !r.pages.length ? 'FF808080' : 'FF000000') } };
+        if (j !== 4) c.font = { name: JP, size: j === 0 ? 12 : 11, bold: (j === 1 && !sub) || j === 0, color: { argb: j === 0 ? (MARKC[v] || 'FF000000') : (j === 2 && !r.pages.length ? 'FF808080' : 'FF000000') } };
         c.alignment = { vertical: 'middle', wrapText: j === 1 || j === 4, horizontal: [0, 2, 3].includes(j) ? 'center' : 'left', indent: j === 1 && sub ? 2 : 0 };
         if (ask) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
       });
-      ws.getRow(rn).height = 30; rn++;
+      ws.getRow(rn).height = h; rn++;
     }
     if (!rows.length) { ws.getCell(rn, 2).value = '（この章で載せる語はありません）'; ws.getCell(rn, 2).font = { name: JP, size: 11, color: { argb: 'FF808080' } }; }
     ws.pageSetup = { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '5:5',
