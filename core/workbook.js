@@ -1,9 +1,9 @@
 // 作業Excel（上下2段：上＝扉、下＝巻末）の書き出しと読み戻し
 import { nz } from './pdftext.js';
 
-export const TOOL_VER = '1.4';
-export const LAB = { ok: '○ 特定', chk: '？ 要確認', ng: '× 見つからず', new: '＋ 新規候補', auto: '－ 自動', head: '－ 親見出し', kari: '△ 仮（施設基準）' };
-const STC = { '○': '375623', '？': '7F6000', '×': 'A61C28', '＋': '1F4E79', '－': '999999', '△': 'C55A11' };
+export const TOOL_VER = '1.5';
+export const LAB = { ok: '○ 特定', chk: '？ 要確認', ng: '× 見つからず', new: '＋ 新規候補', auto: '－ 自動', head: '－ 親見出し', kari: '△ 仮（施設基準）', claude: '◆ Claude案' };
+const STC = { '○': '375623', '？': '7F6000', '×': 'A61C28', '＋': '1F4E79', '－': '999999', '△': 'C55A11', '◆': '7030A0' };
 const SECC = { '扉': ['1F4E79', 'DDEBF7'], '索引': ['375623', 'E2EFDA'] };
 const PREVC = { '両方': '375623', '扉のみ': '1F4E79', '巻末のみ': '7F6000', '—': '999999' };
 const COLS = ['区分', 'No', '語', '読み', '今回P', '', '', '前回P', '前回の掲載', 'ツールの判定', '今回の掲載\n▼選ぶ', 'ツールのメモ（なぜそう判断したか）', '打合せメモ', 'ID'];
@@ -28,7 +28,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
     sec, no: r.no, sub: r.sub, text: r.new ? r.text : displayText(r.text, disp),
     yomi: sec === '索引' && !r.sub ? (r.yomi || '') : '', yflag: sec === '索引' ? (r.yflag || []) : [],
     pages: [...r.newp], oldp: r.oldp, prev: r.prev, st: r.st, note: r.note || '', first: r.first, isNew: r.new,
-    dec: ['ok', 'head', 'auto', 'kari'].includes(r.st) ? '載せる' : '', memo: '',
+    dec: ['ok', 'head', 'auto', 'kari'].includes(r.st) ? '載せる' : '', memo: r.memo || '',
     id: { st: r.st, tp: [...r.newp], op: r.oldp, k: r.kijun ? 1 : 0, other: r.other || [] },
   });
   let up = C.TOP.map(r => mk(r, '扉')), low = C.LOW.map(r => mk(r, '索引'));
@@ -87,6 +87,8 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
     ws.getCell(xr, 12).font = F({ size: 9, color: '595959' });
     ws.getCell(xr, 14).font = F({ size: 6, color: 'FFFFFF' }); ws.getCell(xr, 14).alignment = { horizontal: 'left', vertical: 'middle' };
     if (sec === '索引' && r.yflag && r.yflag.length) ws.getCell(xr, 4).font = F({ color: 'C55A11', bold: true });
+    if (r.st === 'claude') { ws.getCell(xr, 3).font = F({ bold: true, color: '7030A0' }); ws.getCell(xr, 12).font = F({ size: 9, color: '7030A0' }); }
+    if (r.memo && r.memo.startsWith('【Claude')) ws.getCell(xr, 13).font = F({ size: 9, color: '7030A0' });
     if (r.changed) for (let k = 5; k <= 7; k++) ws.getCell(xr, k).fill = fill('FFD966');
     if ((r.note || '').length > 40) ws.getRow(xr).height = 28;
   };
@@ -99,7 +101,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
   let prio = 1;
   const cf = (ref, formula, style, stop = false) => ws.addConditionalFormatting({ ref, rules: [{ type: 'expression', formulae: [formula], style, stopIfTrue: stop, priority: prio++ }] });
   cf(`B${r0}:M${END}`, `$K${r0}="載せない"`, { font: { color: { argb: 'FFA6A6A6' }, strike: true }, fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF2F2F2' } } }, true);
-  for (const [ch, col] of [['？', 'FFF2CC'], ['×', 'F8D7DA'], ['＋', 'DDEBF7']])
+  for (const [ch, col] of [['？', 'FFF2CC'], ['×', 'F8D7DA'], ['＋', 'DDEBF7'], ['◆', 'E4DFEC']])
     cf(`B${r0}:J${END}`, `AND($K${r0}="",LEFT($J${r0},1)="${ch}")`, { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: argb(col) } } });
   cf(`B${r0}:K${END}`, `AND($C${r0}<>"",$J${r0}="",$K${r0}="")`, { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFCE4D6' } } });
   ws.autoFilter = `A2:M${lowend}`;
@@ -114,7 +116,8 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
   const leg = [['？ 要確認', 'FFF2CC', '語はあるがページに自信なし。どこを指すか決めて、合っていれば「載せる」、違えばページを直して「載せる」。'],
     ['× 見つからず', 'F8D7DA', '新原稿に見つからない（削除・名前の変更・図の中など）。載せるならページを手で入れて「載せる」、やめるなら「載せない」。'],
     ['＋ 新規候補', 'DDEBF7', '新原稿の見出し・略称で、前回の索引に無い語。載せるなら「載せる」、不要なら「載せない」。橙色の読みは自動推定の部分あり。'],
-    ['（空欄）', 'FCE4D6', '人が追加した行で、まだ「今回の掲載」を選んでいないもの。']];
+    ['（空欄）', 'FCE4D6', '人が追加した行で、まだ「今回の掲載」を選んでいないもの。'],
+    ['◆ Claude案', 'E4DFEC', 'Claude（AI）が新原稿を読んで提案した行（書き換え・追加の案）。採用なら「載せる」、元の行は「載せない」に。不要なら「載せない」。']];
   const sh = `'${q}'`;
   leg.forEach(([a, col, t], i) => {
     const rr = 7 + i; const c = g.getCell(rr, 2); c.value = a; c.fill = fill(col); c.font = F({ bold: true }); c.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -181,7 +184,7 @@ export async function readWork(ExcelJS, data) {
     let id = null; try { const t = cellText(row.getCell(14)); if (t) id = JSON.parse(t); } catch (e) { }
     cur.push({ row: rn, sec: cur === up ? '扉' : '索引', no: cellText(row.getCell(2)), text, sub: /^[（(]/.test(text), yomi: cellText(row.getCell(4)).trim(),
       pages, oldp: cellText(row.getCell(8)), prev: cellText(row.getCell(9)), stLabel: cellText(row.getCell(10)), dec: cellText(row.getCell(11)).trim(),
-      note: cellText(row.getCell(12)), memo: cellText(row.getCell(13)), id, human: !cellText(row.getCell(10)) });
+      note: cellText(row.getCell(12)), memo: cellText(row.getCell(13)), id, human: !cellText(row.getCell(10)) || cellText(row.getCell(10)).startsWith('◆') });
   });
   return { meta, up, low, sheet: ws.name };
 }
@@ -236,7 +239,8 @@ export function carryOver(up, low, prev) {
         const k = out.findIndex(r => (r.sub ? 'S' : 'M') + nz(r.text) === (a.sub ? 'S' : 'M') + nz(a.text));
         if (k >= 0) { anchor = k; break; }
       }
-      const r = { sec: p.sec, no: null, sub: p.sub, text: p.text, yomi: p.yomi, pages: p.pages, oldp: [], prev: '', st: '', note: p.note, dec: p.dec, memo: p.memo, id: null, human: true };
+      const cl = (p.stLabel || '').startsWith('◆');   // Claude案の行は色と判定を残す
+      const r = { sec: p.sec, no: cl ? (+p.no || null) : null, sub: p.sub, text: p.text, yomi: p.yomi, pages: p.pages, oldp: [], prev: cl ? '—' : '', st: cl ? 'claude' : '', note: p.note, dec: p.dec, memo: p.memo, id: cl ? { st: 'claude', tp: p.pages, op: [], k: 0, other: [] } : null, human: true };
       out.splice(anchor + 1, 0, r);
     });
     prevRows.forEach((p, i) => { if (!p.human && !used.has(i) && p.dec) report.lost.push(`${p.sec}：${p.text}（${p.dec}）`); });
