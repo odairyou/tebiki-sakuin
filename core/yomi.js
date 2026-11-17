@@ -108,7 +108,8 @@ export class Yomi {
     const k = nz(text);
     if (/^○?未?請求/.test(k) && k.includes('請求') && k.length <= 4) return ['まるみせいきゅう', []];
     if (k.startsWith('○') && k.includes('請求')) return ['まるみせいきゅう', []];
-    if (k in this.old) return [clean(this.old[k]), []];
+    // 前回の読みは、並び順の目印の数字（例「はりは１3」）も含めてそのまま使う
+    if (k in this.old) return [String(this.old[k]).replace(/[\s　]+/g, ''), []];
     const base = N(text).replace(/[（(][^（）()]*[）)]/g, '').replace(/[（(].*$/, '') || N(text);
     return this.dictY(base);
   }

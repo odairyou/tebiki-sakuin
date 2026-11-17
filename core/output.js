@@ -33,16 +33,17 @@ const VOW = {};
 'おこそとのほもよろをごぞどぼぽぉょ'.split('').forEach(c => VOW[c] = 'お'); VOW['ん'] = 'ん';
 const seion = c => { const d = c.normalize('NFD').replace(/[゙゚]/g, ''); return SMALL[d] || d; };
 export function yomiKey(y) {
-  const s = hira(String(y || '').normalize('NFKC')).replace(/[^ぁ-んー]/g, '');
+  // 数字は並び順の目印として残す（前回の読み「はりは１1」「はりは１2」など）
+  const s = hira(String(y || '').normalize('NFKC')).replace(/[^ぁ-んー0-9]/g, '');
   let k1 = '', prev = '';
-  for (const c of s) { const b = c === 'ー' ? (VOW[prev] || 'ー') : seion(c); k1 += b; if (c !== 'ー') prev = c; }
+  for (const c of s) { const b = c === 'ー' ? (VOW[prev] || 'ー') : (/[0-9]/.test(c) ? c : seion(c)); k1 += b; if (c !== 'ー') prev = c; }
   const k2 = [...s].map(c => c.normalize('NFD').includes('゚') ? '2' : (c.normalize('NFD').includes('゙') ? '1' : '0')).join('');
   return [k1, k2];
 }
 export const cmpYomi = (a, b) => { const [a1, a2] = yomiKey(a), [b1, b2] = yomiKey(b); return a1 < b1 ? -1 : a1 > b1 ? 1 : (a2 < b2 ? -1 : a2 > b2 ? 1 : 0); };
 const GYO = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
 export function headOf(y) {
-  const [k1] = yomiKey(y); const c = k1[0]; if (!c) return '他';
+  const [k1] = yomiKey(y); const c = k1.replace(/[0-9]/g, '')[0]; if (!c) return '他';
   const kk = String.fromCharCode(c.charCodeAt(0) + 0x60);
   return GYO.includes(kk) ? kk : '他';
 }
