@@ -1,7 +1,7 @@
 // 作業Excel（上下2段：上＝扉、下＝巻末）の書き出しと読み戻し
 import { nz } from './pdftext.js';
 
-export const TOOL_VER = '1.1';
+export const TOOL_VER = '1.2';
 export const LAB = { ok: '○ 特定', chk: '？ 要確認', ng: '× 見つからず', new: '＋ 新規候補', auto: '－ 自動', head: '－ 親見出し', kari: '△ 仮（施設基準）' };
 const STC = { '○': '375623', '？': '7F6000', '×': 'A61C28', '＋': '1F4E79', '－': '999999', '△': 'C55A11' };
 const SECC = { '扉': ['1F4E79', 'DDEBF7'], '索引': ['375623', 'E2EFDA'] };
@@ -44,7 +44,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
   wb.creator = '手引き索引ツール'; wb.calcProperties.fullCalcOnLoad = true;
   const g = wb.addWorksheet('見方', { properties: { tabColor: { argb: 'FF404040' } }, views: [{ showGridLines: false }] });
   const SH = meta.short;
-  const ws = wb.addWorksheet(SH, { properties: { tabColor: { argb: 'FFBF8F00' }, outlineProperties: { summaryBelow: false } }, views: [{ state: 'frozen', xSplit: 3, ySplit: 2, activeCell: 'D4' }] });
+  const ws = wb.addWorksheet(SH, { properties: { tabColor: { argb: 'FFBF8F00' } }, views: [{ state: 'frozen', xSplit: 3, ySplit: 2, activeCell: 'D4' }] });
   COLS.forEach((h, j) => {
     const c = ws.getCell(2, j + 1); c.value = h || null; c.font = F({ bold: true, color: 'FFFFFF' }); c.fill = fill('404040');
     c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -54,9 +54,10 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
   ws.mergeCells('E2:G2'); ws.getRow(2).height = 32;
   const r0 = 4, lowbanner = r0 + up.length + 1, lowstart = lowbanner + 1, lowend = lowstart + low.length - 1;
   const q = SH.replace(/'/g, "''");
-  ws.getCell('A1').value = { text: '▲ 扉ページへ', hyperlink: `#'${q}'!A${r0 - 1}` };
+  // シート内へのリンクはHYPERLINK関数で（Excelで開けないファイルにならないように）
+  ws.getCell('A1').value = { formula: `HYPERLINK("#'${q}'!A${r0 - 1}","▲ 扉ページへ")`, result: '▲ 扉ページへ' };
   ws.getCell('A1').font = F({ bold: true, color: '1F4E79', underline: true });
-  ws.getCell('D1').value = { text: '▼ 索引（巻末）へ', hyperlink: `#'${q}'!A${lowbanner}` };
+  ws.getCell('D1').value = { formula: `HYPERLINK("#'${q}'!A${lowbanner}","▼ 索引（巻末）へ")`, result: '▼ 索引（巻末）へ' };
   ws.getCell('D1').font = F({ bold: true, color: '375623', underline: true });
   ws.mergeCells('A1:C1');
   const banner = (rr, t, sec) => {
