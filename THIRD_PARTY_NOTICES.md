@@ -6,3 +6,4 @@
 | ExcelJS | Excelの読み書き | MIT License | `exceljs.min.js`（`exceljs.LICENSE`） |
 | kuromoji.js | 新しい語の読みの推定（形態素解析） | Apache License 2.0 | `kuromoji/`（`kuromoji/LICENSE-2.0.txt`） |
 | mecab-ipadic（kuromoji.js 同梱の辞書） | 同上 | mecab-ipadic のライセンス（`kuromoji/NOTICE.md`） | `kuromoji/dict/` |
+| JSZip | まとめてダウンロードのzip | MIT License（または GPLv3 の選択制） | `jszip.min.js`（`jszip.LICENSE.md`） |

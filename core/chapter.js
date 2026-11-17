@@ -338,7 +338,8 @@ export class Chapter {
       hseen.add(t);
       const disp = t.replace(/\(/g, '（').replace(/\)/g, '）');
       const note = `新原稿の大見出し「${disp}」。前回の索引に無い早見表`;
-      this.newTop.push({ text: '（早見表）', sub: true, oldp: [], newp: [p], other: [], st: 'new', note: note + '（扉では見出しの下の副項目として入れた）', new: true, hayami: true });
+      this.newTop.push({ text: disp, sub: false, oldp: [], newp: [p], other: [], st: 'new', new: true, hayami: true,
+        note: 'ページの位置に入れた。どの項目の下に置くか（副項目にするか）は打合せで決める。' + note });
       const [yv, gs] = this.Y.get(disp);
       this.newBot.push([{ text: disp, sub: false, oldp: [], newp: [p], other: [], st: 'new', new: true, yomi: yv, yflag: gs,
         note: note + (gs.length ? '。読みの「' + gs.join('」「') + '」は自動推定（要確認）' : '') }]);
@@ -357,24 +358,12 @@ export class Chapter {
     let TOP = this.TOP;
     const oldM = this.tob.filter(e => !e.sub).length, oldS = this.tob.filter(e => e.sub).length;
     this.subMode = oldS / Math.max(oldM, 1) >= 5;
-    // 早見表：ページ順で直前の扉の主項目の副項目に入れる
-    for (const c of this.newTop) {
-      if (!c.hayami) continue;
-      const p = c.newp[0];
-      const idx = TOP.map((r, i) => i).filter(i => !TOP[i].sub && TOP[i].newp.length && TOP[i].newp[0] <= p && TOP[i].st !== 'chk');
-      const i = idx.length ? idx.reduce((b, i) => (TOP[i].newp[0] > TOP[b].newp[0] || (TOP[i].newp[0] === TOP[b].newp[0] && i > b)) ? i : b, idx[0]) : -1;
-      if (i < 0) { TOP.unshift({ ...c, sub: false, text: c.note.match(/「(.*?)」/)[1] }); continue; }
-      c.note = '「' + TOP[i].text + '」の副項目として入れた。' + c.note.replace('（扉では見出しの下の副項目として入れた）', '');
-      let j = i + 1, k = i + 1;
-      while (j < TOP.length && TOP[j].sub) { if (TOP[j].newp.length && TOP[j].newp[0] <= p) k = j + 1; j++; }
-      TOP.splice(k, 0, c);
-    }
     for (const c of this.newTop) {
       if (c.sub) continue;
       const p = c.newp[0];
       const idx = TOP.map((r, i) => i).filter(i => !TOP[i].sub && TOP[i].newp.length && TOP[i].newp[0] <= p && TOP[i].st !== 'chk');
       const i = idx.length ? idx.reduce((b, i) => (TOP[i].newp[0] > TOP[b].newp[0] || (TOP[i].newp[0] === TOP[b].newp[0] && i > b)) ? i : b, idx[0]) : -1;
-      if (this.subMode && i >= 0) {
+      if (this.subMode && i >= 0 && !c.hayami) {
         c.sub = true; c.text = '（' + c.text + '）'; c.asSub = true;
         c.note = '前回の扉にならい、「' + TOP[i].text + '」の副項目として入れた。' + c.note;
         let j = i + 1, k = i + 1;
@@ -386,8 +375,7 @@ export class Chapter {
     }
     const newsub = new Map(); let last = null;
     for (const c of this.newTop) {
-      if (c.hayami) continue;
-      if (c.asSub) last = null;
+      if (c.asSub || c.hayami) last = null;
       else if (!c.sub) last = c.text;
       else if (last) { if (!newsub.has(last)) newsub.set(last, []); newsub.get(last).push(c); }
     }

@@ -1,6 +1,7 @@
 // 手引き索引ツール：画面の動き
 import * as P from './core/pipeline.js';
 import { TOOL_VER } from './core/workbook.js';
+import { makeZip } from './core/zip.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -47,8 +48,8 @@ let SETTINGS = null, SIS = null;
 
 // ---------- 共通の部品
 async function readFile(f) { return { name: f.name, data: new Uint8Array(await f.arrayBuffer()), lastModified: f.lastModified }; }
-function download(name, buf) {
-  const url = URL.createObjectURL(new Blob([buf], { type: XLSX }));
+function download(name, buf, type = XLSX) {
+  const url = URL.createObjectURL(new Blob([buf], { type }));
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
@@ -218,7 +219,12 @@ setupDrop(document.querySelector('[data-input="ch-files"]'), async files => {
   } catch (e) { alert(errText(e)); }
   progress('ch-progress', null);
 });
-$('ch-all').addEventListener('click', async () => { for (const m of made) { download(m.name, m.buf); await new Promise(r => setTimeout(r, 400)); } });
+$('ch-all').addEventListener('click', async () => {
+  if (!made.length) return;
+  const d = new Date(), ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const zip = await makeZip(window.JSZip, made);
+  download(`索引作業_${ymd}.zip`, zip, 'application/zip');
+});
 
 // ---------- 業者に渡すデータ
 setupDrop(document.querySelector('[data-input="out-tob"]'), async files => {
