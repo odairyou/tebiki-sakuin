@@ -365,14 +365,15 @@ export class Chapter {
       const chs = [...new Set(ent.pages.map(chOf).filter(Boolean).map(c => shortT(c.title)))];
       const where = `「${chs.join('」「') || 'ほかの章'}」の章（p.${ent.pages.join('・')}）`;
       if (!this.och.heads) continue;   // 設定が古い（章ごとの見出しを覚えていない）ときは今までどおり何もしない
-      if (ps.some(x => chHeads.has(x)) || chHeads.has(t)) {
-        this.skipped.push({ text: ent.text, page: p, reason: `前回もこの章に見出し・略称があったが、巻末索引は${where}だけ` });
-        continue;
-      }
-      const note = `前回の索引では${where}にある語。今回この章にも見出しが出てきた`;
+      // A：前回もこの章に見出し・略称があったのに、扉・巻末にこの章のページを載せていなかった語（わざと外した可能性が高い）
+      // B：前回この章には無く、今回初めて出てきた語
+      const x = (ps.some(q => chHeads.has(q)) || chHeads.has(t)) ? 'A' : 'B';
+      const note = x === 'A'
+        ? `前回の索引では${where}にある語。前回もこの章に見出し・略称があったが、扉・巻末にはこの章のページを載せていない（わざと外した可能性が高い）`
+        : `前回の索引では${where}にある語。今回この章にも見出しが出てきた`;
       const [yv, gs] = this.Y.get(ent.text);
-      if (kind === 'head') this.newTop.push({ text: ent.text, sub: false, oldp: [], newp: [p], other: [], st: 'new', note, new: true, xch: true });
-      this.newBot.push([{ text: ent.text, sub: false, oldp: [], newp: [p], other: [], st: 'new', note, new: true, xch: true, yomi: yv, yflag: gs }]);
+      if (kind === 'head') this.newTop.push({ text: ent.text, sub: false, oldp: [], newp: [p], other: [], st: 'new', note, new: true, xch: x });
+      this.newBot.push([{ text: ent.text, sub: false, oldp: [], newp: [p], other: [], st: 'new', note, new: true, xch: x, yomi: yv, yflag: gs }]);
     }
     const exist = new Set(this.BOT.map(b => nz(b[0].text)));
     this.newBot = this.newBot.filter(b => !exist.has(nz(b[0].text)));

@@ -180,9 +180,9 @@ export function officerMsg(r, sec) {
   const xm = note.match(/前回の索引では(「.+?」)の章（p\.([\d・]+)）にある語/);
   if (lab.startsWith('＋') && xm) {
     const here = (r.pages || []).join('・') || '＿＿';
-    if (sec === '扉') return { mark: '新', lines: [`この語は、主に${xm[1]}の章（p.${xm[2]}）で扱っています。この章では関連として出てくるだけのため、扉には載せなくてよいと考えています。`],
+    if (sec === '扉') return { mark: '新', lines: [`この語は、主に${xm[1]}の章で扱っています。この章では関連として出てくるだけのため、扉には載せなくてよいと考えています。`],
       choice: '□ 載せない（このままでよい）　　□ 扉に載せる', memo: ownMemo };
-    return { mark: '新', lines: [`巻末索引では、この語に${xm[1]}の章のページ（p.${xm[2]}）を載せています。`,
+    return { mark: '新', lines: [`巻末索引では、この語に${xm[1]}の章のページ（前回 p.${xm[2]}）を載せています。`,
       `説明している章のページだけを載せる方針のため、この章のp.${here}は足さなくてよいと考えています。`,
       { small: true, text: `足した場合の表示：${r.text} …… ${xm[2]}・${here}` }],
       choice: `□ 足さない（このままでよい）　　□ p.${here} も足す`, memo: ownMemo, after: `※${xm[1]}の章で見当たらない場合は、こちらを足してください` };
@@ -202,6 +202,18 @@ export function officerMsg(r, sec) {
   return { mark: '★', lines: [], choice: `□ ${put}　　□ 載せない`, memo: ownMemo };
 }
 
+// 事務局で載せない予定の、ほかの章の語（取り消し線で出す行）の説明。□は付けない
+export function strikeMsg(r, sec) {
+  const m = String(r.note || '').match(/前回の索引では(「.+?」)の章（p\.([\d・]+)）にある語/);
+  const ch = m ? m[1] : 'ほかの', pg = m ? m[2] : '';
+  const A = (r.id && r.id.x === 'A');
+  if (sec === '扉') return A ? `主に${ch}の章で扱っている語です。前回もこの章に出ていましたが、扉には載せていません。今回もこのままの予定です。`
+    : `主に${ch}の章で扱っている語です。この章では関連として出てくるだけのため、扉には載せない予定です。`;
+  return A ? `主に${ch}の章で扱っている語です。前回もこの章に出ていましたが、巻末索引には${ch}の章のページ（前回 p.${pg}）だけを載せています。今回もこのままの予定です。`
+    : `主に${ch}の章で扱っている語です。巻末索引には${ch}の章のページ（前回 p.${pg}）だけを載せる予定です。`;
+}
+const isStrike = r => r.dec === '載せない' && r.id && r.id.x;
+
 export async function writeOfficer(ExcelJS, W) {
   const wb = new ExcelJS.Workbook();
   const JP = '游ゴシック', title = W.meta.title || W.meta.short || '';
@@ -212,7 +224,7 @@ export async function writeOfficer(ExcelJS, W) {
   const nLines = t => String(t).split('\n').reduce((a, x) => a + Math.max(1, Math.ceil([...x].length / PER_LINE)), 0);
   let asking = 0;
   for (const [sec, name, label] of [['扉', '扉ページ', '扉ページ（この章のはじめのページ）'], ['索引', '巻末索引', '巻末索引（この章の分）']]) {
-    const rows = (sec === '扉' ? W.up : W.low).filter(r => r.dec === '載せる' || r.dec === '役員確認');
+    const rows = (sec === '扉' ? W.up : W.low).filter(r => r.dec === '載せる' || r.dec === '役員確認' || isStrike(r));
     const nAsk = rows.filter(r => r.dec === '役員確認').length; asking += nAsk;
     const ws = wb.addWorksheet(name, { views: [{ showGridLines: false }] });
     [5, 50, 9, 9, 54].forEach((w, i) => ws.getColumn(i + 1).width = w);
@@ -220,7 +232,7 @@ export async function writeOfficer(ExcelJS, W) {
     ws.getCell('A2').value = '全体をご確認ください。ページの誤り・言い回しの直し・足りない語は、該当する箇所に赤で直接書き込んでください。';
     ws.getCell('A3').value = '印（無・新・★）の行は、特にご判断をお願いしたい行です。「事務局より」の□にレ点を入れてください。　提出：　　月　　日（　）まで';
     for (const a of ['A2', 'A3']) ws.getCell(a).font = { name: JP, size: 10 };
-    ws.getCell('A4').value = `このシートで判断をお願いする行：${nAsk}件　（無＝前回あって今回見当たらない語　新＝今回新しく出てきた語）`;
+    ws.getCell('A4').value = `このシートで判断をお願いする行：${nAsk}件　（無＝前回あって今回見当たらない語　新＝今回新しく出てきた語）` + (rows.some(isStrike) ? '　取り消し線の行は、ほかの章で扱っているため事務局で載せない予定の語です' : '');
     ws.getCell('A4').font = { name: JP, size: 10, bold: true, color: { argb: 'FF7F6000' } };
     ['', '語', '今回P', '前回P', '事務局より'].forEach((h, j) => {
       const c = ws.getCell(5, j + 1); c.value = h || null; c.font = { name: JP, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -234,7 +246,13 @@ export async function writeOfficer(ExcelJS, W) {
       const pg = r.pages.length ? r.pages.join('・') : (ask ? 'なし' : (/\d/.test(r.oldp) ? '他の章' : ''));
       const old = String(r.oldp || '').trim() || '—';
       const M = ask ? officerMsg(r, sec) : null;
+      const strike = isStrike(r);
       let msg = null, h = 30;
+      if (strike) {
+        const t = strikeMsg(r, sec);
+        msg = { richText: [{ text: t, font: { name: JP, size: 9, color: { argb: 'FF666666' } } }] };
+        h = Math.max(30, nLines(t) * 13 + 8);
+      }
       if (M) {
         const parts = [];
         M.lines.forEach(l => typeof l === 'string'
@@ -247,10 +265,12 @@ export async function writeOfficer(ExcelJS, W) {
         const all = [...M.lines.map(l => typeof l === 'string' ? l : l.text), M.choice, ...(M.after ? [M.after] : []), ...(M.memo ? [M.memo] : [])].join('\n');
         h = Math.max(36, nLines(all) * 15 + 10);
       }
-      const vals = [ask ? M.mark : null, r.text, pg, old, msg];
+      const vals = [ask ? M.mark : (strike ? '外' : null), r.text, pg, old, msg];
       vals.forEach((v, j) => {
         const c = ws.getCell(rn, j + 1); c.value = (j === 2 && isNum(v)) ? +v : v; c.border = B;
-        if (j !== 4) c.font = { name: JP, size: j === 0 ? 12 : 11, bold: (j === 1 && !sub) || j === 0, color: { argb: j === 0 ? (MARKC[v] || 'FF000000') : (j === 2 && !r.pages.length ? 'FF808080' : 'FF000000') } };
+        if (j !== 4) c.font = strike
+          ? { name: JP, size: j === 0 ? 11 : 11, bold: j === 0, strike: j > 0, color: { argb: j === 0 ? 'FF808080' : 'FF808080' } }
+          : { name: JP, size: j === 0 ? 12 : 11, bold: (j === 1 && !sub) || j === 0, color: { argb: j === 0 ? (MARKC[v] || 'FF000000') : (j === 2 && !r.pages.length ? 'FF808080' : 'FF000000') } };
         c.alignment = { vertical: 'middle', wrapText: j === 1 || j === 4, horizontal: [0, 2, 3].includes(j) ? 'center' : 'left', indent: j === 1 && sub ? 2 : 0 };
         if (ask) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
       });
