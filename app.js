@@ -163,6 +163,7 @@ function renderChapterRow(item, env) {
   const info = [`${esc(item.file)} → <b>${esc(SETTINGS.old.chapters[item.idx].title)}</b>（p.${esc(W.meta.range.replace('-', '〜'))}）`, undecidedText(W.undecided)];
   if (item.carry) { const r = W.report; info.push(`前のExcelから引き継ぎ：判定 ${r.kept}行・人が足した行 ${r.human}行・ページが変わった行 ${r.changed}行` + (r.lost.length ? `・今回の原稿に無くなった行 ${r.lost.length}行` : '')); }
   if (!SIS) info.push('施設基準の章のPDFが無いので、（施設基準）の行のページは空です');
+  if (W.C && W.C.xchNoInfo) info.push('<b style="color:#A61C28">「設定」を取り込み直してください。</b>ツールを新しくしたため、取り込み直すと、ほかの章から来た語も候補に出せるようになります');
   row.innerHTML = `<span class="name">${esc(W.name)}</span><span class="info">${info.join('<br>')}</span>`;
   row.append(dlLink(W.name, W.buf));
   const fix = document.createElement('div'); fix.className = 'fix';

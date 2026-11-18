@@ -1,7 +1,7 @@
 // 作業Excel（上下2段：上＝扉、下＝巻末）の書き出しと読み戻し
 import { nz } from './pdftext.js';
 
-export const TOOL_VER = '1.8';
+export const TOOL_VER = '1.9';
 export const LAB = { ok: '○ 特定', chk: '？ 要確認', ng: '× 見つからず', new: '＋ 新規候補', auto: '－ 自動', head: '－ 親見出し', kari: '△ 仮（施設基準）', claude: '◆ Claude案' };
 const STC = { '○': '375623', '？': '7F6000', '×': 'A61C28', '＋': '1F4E79', '－': '999999', '△': 'C55A11', '◆': '7030A0' };
 const SECC = { '扉': ['1F4E79', 'DDEBF7'], '索引': ['375623', 'E2EFDA'] };
@@ -28,7 +28,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
     sec, no: r.no, sub: r.sub, text: r.new ? r.text : displayText(r.text, disp),
     yomi: sec === '索引' && !r.sub ? (r.yomi || '') : '', yflag: sec === '索引' ? (r.yflag || []) : [],
     pages: [...r.newp], oldp: r.oldp, prev: r.prev, st: r.st, note: r.note || '', first: r.first, isNew: r.new,
-    dec: ['ok', 'head', 'auto', 'kari', 'chk'].includes(r.st) ? '載せる' : (['ng', 'new'].includes(r.st) ? '役員確認' : ''), memo: r.memo || '',
+    dec: (r.xch && sec === '扉') ? '載せない' : (['ok', 'head', 'auto', 'kari', 'chk'].includes(r.st) ? '載せる' : (['ng', 'new'].includes(r.st) ? '役員確認' : '')), memo: r.memo || '',
     id: { st: r.st, tp: [...r.newp], op: r.oldp, k: r.kijun ? 1 : 0, other: r.other || [] },
   });
   let up = C.TOP.map(r => mk(r, '扉')), low = C.LOW.map(r => mk(r, '索引'));
@@ -137,6 +137,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
       'シート最上段の「▲扉ページへ」「▼索引へ」で、それぞれの段の先頭へ飛べます。左端の「－」で段ごと折りたためます。',
       '「前回の掲載」は前回の手引きでどこに載っていたか（両方／扉のみ／巻末のみ／—＝前回なし）。',
       '扉には載せず巻末だけに載せるときは、上の段を「載せない」、下の段を「載せる」にします。',
+      '前回はほかの章にあった語が、今回この章にも見出しで出てきた場合は新規候補になります（扉の段は最初から「載せない」、索引の段は「役員確認」）。前回もこの章に出ていたのに索引に載せていなかった語は、「拾わなかった見出し」のシートにまとめています。',
       '「役員確認」の行は、役員確認用のExcelで役員に聞きます。「事務局より」の欄には決まった文（前回あったが今回見当たらない／新しく出てきた語）と□の選択肢が出て、打合せメモに書いた内容はその後ろに足されます。ページは空でも構いません。',
       'ページを空けておきたい（あとで業者に入れてもらう）ときは、今回Pに「●●」と書きます。']],
     ['行を足すとき', ['空の行を挿入して、語（索引の段は読みも）・今回Pを書き、「今回の掲載」を選びます。No・ツールの判定は空欄でOK。',
@@ -155,6 +156,17 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
     rr++;
   }
   g.pageSetup = { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+  // ---- 拾わなかった見出し（前回もこの章にあったが、索引はほかの章のページだけだった語）
+  if (C.skipped && C.skipped.length) {
+    const k = wb.addWorksheet('拾わなかった見出し', { properties: { tabColor: { argb: 'FF999999' } } });
+    [3, 44, 9, 70].forEach((w, i) => k.getColumn(i + 1).width = w);
+    k.getCell('B1').value = '拾わなかった見出し'; k.getCell('B1').font = F({ size: 13, bold: true });
+    k.getCell('B2').value = '前回もこの章に見出し・略称があったのに、巻末索引はほかの章のページだけを載せていた語です。説明している章のページだけを載せる方針にならい、作業シートには入れていません。載せたいものがあれば、作業シートに行を足してください。';
+    k.getCell('B2').font = F({ color: '595959' }); k.getCell('B2').alignment = { wrapText: true, vertical: 'top' }; k.mergeCells('B2:D2'); k.getRow(2).height = 32;
+    ['語', '今回P', '理由'].forEach((h, j) => { const c = k.getCell(4, j + 2); c.value = h; c.font = F({ bold: true, color: 'FFFFFF' }); c.fill = fill('404040'); c.alignment = { horizontal: 'center' }; });
+    C.skipped.forEach((x, i) => { const rr = 5 + i; k.getCell(rr, 2).value = displayText(x.text, disp); k.getCell(rr, 3).value = x.page; k.getCell(rr, 4).value = x.reason;
+      for (let j = 2; j <= 4; j++) { k.getCell(rr, j).font = F(); k.getCell(rr, j).border = { bottom: thin }; } k.getCell(rr, 3).alignment = { horizontal: 'center' }; });
+  }
   // ---- 隠しシート：ツールが読み戻すための情報
   const info = wb.addWorksheet('_info', { state: 'veryHidden' });
   const kv = { tool: '手引き索引ツール', ver: TOOL_VER, kind: '作業', idx: meta.idx, title: meta.title, short: meta.short, tab: meta.tab, oldTob: meta.oldTob, range: meta.range, created: meta.created || '', sheet: SH, edition: meta.edition || '' };

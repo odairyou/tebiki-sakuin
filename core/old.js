@@ -1,6 +1,6 @@
 // 前回の完成品PDFの読み取り：扉ページ・巻末索引・章の範囲・施設基準ページの見出し（Python版 base.py の移植＋自動判定）
 import { nz } from './pdftext.js';
-import { pageNumbers, activeTab, bigTitle } from './draft.js';
+import { pageNumbers, activeTab, bigTitle, readDraft } from './draft.js';
 import { titlesOf } from './sisetsu.js';
 import { ratio } from './util.js';
 
@@ -76,6 +76,14 @@ export function readOld(pages) {
     c.hi = nx - 1;
   });
   if (sisetsu) { const after = chapters.find(c => c.lo > sisetsu.lo); sisetsu.hi = after ? after.lo - 1 : endAll; }
+  // 章ごとの見出し・略称（前回その章に出ていた語。索引に載せたかどうかは問わない）
+  for (const c of chapters) {
+    const sub = info.filter(x => x.p != null && x.p >= c.lo && x.p <= c.hi).map(x => pages[x.i]);
+    try {
+      const R = readDraft(sub);
+      c.heads = [...new Set([...R.heads.map(h => nz(h[2])), ...R.headsMain.map(h => nz(h[2])), ...R.abbrs.map(a => nz(a[2])), ...R.abbrTable.flatMap(([a, b]) => [nz(a), nz(b)])])];
+    } catch (e) { c.heads = []; }
+  }
   const oldTitles = {};
   if (sisetsu) info.forEach(x => { if (x.p != null && x.p >= sisetsu.lo - 20 && x.p <= sisetsu.hi) oldTitles[x.p] = titlesOf(pages[x.i]); });
   // 巻末索引

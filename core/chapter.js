@@ -344,6 +344,36 @@ export class Chapter {
       this.newBot.push([{ text: disp, sub: false, oldp: [], newp: [p], other: [], st: 'new', new: true, yomi: yv, yflag: gs,
         note: note + (gs.length ? '。読みの「' + gs.join('」「') + '」は自動推定（要確認）' : '') }]);
     }
+    // ほかの章の語：前回の索引にあるが、この章の行には無い見出し・略称
+    this.skipped = []; this.xchNoInfo = !this.och.heads;
+    const here = new Set([...this.TOP, ...this.BOT.flat()].flatMap(r => pcs(r.text)));
+    const chHeads = new Set(this.och.heads || []);
+    const chOf = p => old.chapters.find(c => p >= c.lo && p <= c.hi);
+    const shortT = t => String(t || '').replace(/^[0-9０-９]+[．.]\s*/, '');
+    const xseen = new Set();
+    const cands = [...R.headsMain.map(([p, y, t]) => [p, nz(t), 'head']), ...R.abbrs.map(([p, y, a]) => [p, nz(a), 'abbr'])];
+    for (const [p, t, kind] of cands) {
+      if (xseen.has(t) || !known(t)) continue;
+      const ps = pcs(t);
+      if (ps.some(x => here.has(x))) continue;
+      const ents = old.back.filter(e => !e.sub && e.pages.length && (nz(e.text) === t || pcs(e.text).some(x => ps.includes(x))));
+      if (!ents.length) continue;
+      const ent = ents.find(e => nz(e.text) === t) || ents[0];
+      xseen.add(t);
+      if (xseen.has('E:' + nz(ent.text))) continue;
+      xseen.add('E:' + nz(ent.text));
+      const chs = [...new Set(ent.pages.map(chOf).filter(Boolean).map(c => shortT(c.title)))];
+      const where = `「${chs.join('」「') || 'ほかの章'}」の章（p.${ent.pages.join('・')}）`;
+      if (!this.och.heads) continue;   // 設定が古い（章ごとの見出しを覚えていない）ときは今までどおり何もしない
+      if (ps.some(x => chHeads.has(x)) || chHeads.has(t)) {
+        this.skipped.push({ text: ent.text, page: p, reason: `前回もこの章に見出し・略称があったが、巻末索引は${where}だけ` });
+        continue;
+      }
+      const note = `前回の索引では${where}にある語。今回この章にも見出しが出てきた`;
+      const [yv, gs] = this.Y.get(ent.text);
+      if (kind === 'head') this.newTop.push({ text: ent.text, sub: false, oldp: [], newp: [p], other: [], st: 'new', note, new: true, xch: true });
+      this.newBot.push([{ text: ent.text, sub: false, oldp: [], newp: [p], other: [], st: 'new', note, new: true, xch: true, yomi: yv, yflag: gs }]);
+    }
     const exist = new Set(this.BOT.map(b => nz(b[0].text)));
     this.newBot = this.newBot.filter(b => !exist.has(nz(b[0].text)));
     for (const [p, y, a, par] of abbrs) {
@@ -363,7 +393,7 @@ export class Chapter {
       const p = c.newp[0];
       const idx = TOP.map((r, i) => i).filter(i => !TOP[i].sub && TOP[i].newp.length && TOP[i].newp[0] <= p && TOP[i].st !== 'chk');
       const i = idx.length ? idx.reduce((b, i) => (TOP[i].newp[0] > TOP[b].newp[0] || (TOP[i].newp[0] === TOP[b].newp[0] && i > b)) ? i : b, idx[0]) : -1;
-      if (this.subMode && i >= 0 && !c.hayami) {
+      if (this.subMode && i >= 0 && !c.hayami && !c.xch) {
         c.sub = true; c.text = '（' + c.text + '）'; c.asSub = true;
         c.note = '前回の扉にならい、「' + TOP[i].text + '」の副項目として入れた。' + c.note;
         let j = i + 1, k = i + 1;
@@ -375,7 +405,7 @@ export class Chapter {
     }
     const newsub = new Map(); let last = null;
     for (const c of this.newTop) {
-      if (c.asSub || c.hayami) last = null;
+      if (c.asSub || c.hayami || c.xch) last = null;
       else if (!c.sub) last = c.text;
       else if (last) { if (!newsub.has(last)) newsub.set(last, []); newsub.get(last).push(c); }
     }

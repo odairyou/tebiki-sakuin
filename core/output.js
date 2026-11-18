@@ -177,6 +177,16 @@ export function officerMsg(r, sec) {
     }
     return { mark: '無', lines, choice: '□ 外す　　□ 残す（該当ページ p.＿＿）', memo: ownMemo };
   }
+  const xm = note.match(/前回の索引では(「.+?」)の章（p\.([\d・]+)）にある語/);
+  if (lab.startsWith('＋') && xm) {
+    const here = (r.pages || []).join('・') || '＿＿';
+    if (sec === '扉') return { mark: '新', lines: [`この語は、主に${xm[1]}の章（p.${xm[2]}）で扱っています。この章では関連として出てくるだけのため、扉には載せなくてよいと考えています。`],
+      choice: '□ 載せない（このままでよい）　　□ 扉に載せる', memo: ownMemo };
+    return { mark: '新', lines: [`巻末索引では、この語に${xm[1]}の章のページ（p.${xm[2]}）を載せています。`,
+      `説明している章のページだけを載せる方針のため、この章のp.${here}は足さなくてよいと考えています。`,
+      { small: true, text: `足した場合の表示：${r.text} …… ${xm[2]}・${here}` }],
+      choice: `□ 足さない（このままでよい）　　□ p.${here} も足す`, memo: ownMemo, after: `※${xm[1]}の章で見当たらない場合は、こちらを足してください` };
+  }
   if (lab.startsWith('＋')) {
     let l;
     if (note.includes('大見出し') && note.includes('早見表')) l = '新しく入った早見表です。';
@@ -227,11 +237,14 @@ export async function writeOfficer(ExcelJS, W) {
       let msg = null, h = 30;
       if (M) {
         const parts = [];
-        M.lines.forEach(l => parts.push({ text: l + '\n', font: { name: JP, size: 10, color: { argb: 'FF262626' } } }));
+        M.lines.forEach(l => typeof l === 'string'
+          ? parts.push({ text: l + '\n', font: { name: JP, size: 10, color: { argb: 'FF262626' } } })
+          : parts.push({ text: '　' + l.text + '\n', font: { name: JP, size: 9, color: { argb: 'FF666666' } } }));
         parts.push({ text: M.choice, font: { name: JP, size: 11, bold: true, color: { argb: 'FF000000' } } });
+        if (M.after) parts.push({ text: '\n' + M.after, font: { name: JP, size: 9, color: { argb: 'FF666666' } } });
         if (M.memo) parts.push({ text: '\n' + M.memo, font: { name: JP, size: 10, color: { argb: 'FF7F6000' } } });
         msg = { richText: parts };
-        const all = [...M.lines, M.choice, ...(M.memo ? [M.memo] : [])].join('\n');
+        const all = [...M.lines.map(l => typeof l === 'string' ? l : l.text), M.choice, ...(M.after ? [M.after] : []), ...(M.memo ? [M.memo] : [])].join('\n');
         h = Math.max(36, nLines(all) * 15 + 10);
       }
       const vals = [ask ? M.mark : null, r.text, pg, old, msg];
