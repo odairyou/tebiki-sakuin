@@ -217,9 +217,9 @@ const isStrike = r => r.dec === '載せない' && r.id && r.id.x;
 export async function writeOfficer(ExcelJS, W) {
   const wb = new ExcelJS.Workbook();
   const JP = '游ゴシック', title = W.meta.title || W.meta.short || '';
-  const thin = { style: 'thin', color: { argb: 'FF999999' } }, B = { left: thin, right: thin, top: thin, bottom: thin };
+  const thin = { style: 'thin', color: { argb: 'FF000000' } }, B = { left: thin, right: thin, top: thin, bottom: thin };
   const isNum = p => typeof p === 'number' || /^\d+$/.test(String(p));
-  const MARKC = { '無': 'FFC00000', '新': 'FF1F4E79', '★': 'FFB8860B' };
+  const MARKC = { '無': 'FFC00000', '新': 'FF1F4E79', '★': 'FFB8860B' };   // 印だけは色付き（ほかの字は印刷で薄くならないよう黒）
   const PER_LINE = 26;   // 「事務局より」の欄に1行で入るおよその字数
   const nLines = t => String(t).split('\n').reduce((a, x) => a + Math.max(1, Math.ceil([...x].length / PER_LINE)), 0);
   let asking = 0;
@@ -233,10 +233,10 @@ export async function writeOfficer(ExcelJS, W) {
     ws.getCell('A3').value = '印（無・新・★）の行は、特にご判断をお願いしたい行です。「事務局より」の□にレ点を入れてください。　提出：　　月　　日（　）まで';
     for (const a of ['A2', 'A3']) ws.getCell(a).font = { name: JP, size: 10 };
     ws.getCell('A4').value = `このシートで判断をお願いする行：${nAsk}件　（無＝前回あって今回見当たらない語　新＝今回新しく出てきた語）` + (rows.some(isStrike) ? '　取り消し線の行は、ほかの章で扱っているため事務局で載せない予定の語です' : '');
-    ws.getCell('A4').font = { name: JP, size: 10, bold: true, color: { argb: 'FF7F6000' } };
+    ws.getCell('A4').font = { name: JP, size: 10, bold: true, color: { argb: 'FF000000' } };
     ['', '語', '今回P', '前回P', '事務局より'].forEach((h, j) => {
       const c = ws.getCell(5, j + 1); c.value = h || null; c.font = { name: JP, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF404040' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = B;
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sec === '扉' ? 'FF1F4E79' : 'FF375623' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = B;   // 作業Excelと同じ：扉＝青、索引＝緑
     });
     ws.getRow(5).height = 20;
     let rn = 6;
@@ -250,17 +250,17 @@ export async function writeOfficer(ExcelJS, W) {
       let msg = null, h = 30;
       if (strike) {
         const t = strikeMsg(r, sec);
-        msg = { richText: [{ text: t, font: { name: JP, size: 9, color: { argb: 'FF666666' } } }] };
+        msg = { richText: [{ text: t, font: { name: JP, size: 9, color: { argb: 'FF000000' } } }] };
         h = Math.max(30, nLines(t) * 13 + 8);
       }
       if (M) {
         const parts = [];
         M.lines.forEach(l => typeof l === 'string'
-          ? parts.push({ text: l + '\n', font: { name: JP, size: 10, color: { argb: 'FF262626' } } })
-          : parts.push({ text: '　' + l.text + '\n', font: { name: JP, size: 9, color: { argb: 'FF666666' } } }));
+          ? parts.push({ text: l + '\n', font: { name: JP, size: 10, color: { argb: 'FF000000' } } })
+          : parts.push({ text: '　' + l.text + '\n', font: { name: JP, size: 9, color: { argb: 'FF000000' } } }));
         parts.push({ text: M.choice, font: { name: JP, size: 11, bold: true, color: { argb: 'FF000000' } } });
-        if (M.after) parts.push({ text: '\n' + M.after, font: { name: JP, size: 9, color: { argb: 'FF666666' } } });
-        if (M.memo) parts.push({ text: '\n' + M.memo, font: { name: JP, size: 10, color: { argb: 'FF7F6000' } } });
+        if (M.after) parts.push({ text: '\n' + M.after, font: { name: JP, size: 9, color: { argb: 'FF000000' } } });
+        if (M.memo) parts.push({ text: '\n' + M.memo, font: { name: JP, size: 10, color: { argb: 'FF000000' } } });
         msg = { richText: parts };
         const all = [...M.lines.map(l => typeof l === 'string' ? l : l.text), M.choice, ...(M.after ? [M.after] : []), ...(M.memo ? [M.memo] : [])].join('\n');
         h = Math.max(36, nLines(all) * 15 + 10);
@@ -269,14 +269,14 @@ export async function writeOfficer(ExcelJS, W) {
       vals.forEach((v, j) => {
         const c = ws.getCell(rn, j + 1); c.value = (j === 2 && isNum(v)) ? +v : v; c.border = B;
         if (j !== 4) c.font = strike
-          ? { name: JP, size: j === 0 ? 11 : 11, bold: j === 0, strike: j > 0, color: { argb: j === 0 ? 'FF808080' : 'FF808080' } }
-          : { name: JP, size: j === 0 ? 12 : 11, bold: (j === 1 && !sub) || j === 0, color: { argb: j === 0 ? (MARKC[v] || 'FF000000') : (j === 2 && !r.pages.length ? 'FF808080' : 'FF000000') } };
+          ? { name: JP, size: j === 0 ? 11 : 11, bold: j === 0, strike: j > 0, color: { argb: j === 0 ? 'FF000000' : 'FF000000' } }
+          : { name: JP, size: j === 0 ? 12 : 11, bold: (j === 1 && !sub) || j === 0, color: { argb: j === 0 ? (MARKC[v] || 'FF000000') : (j === 2 && !r.pages.length ? 'FF000000' : 'FF000000') } };
         c.alignment = { vertical: 'middle', wrapText: j === 1 || j === 4, horizontal: [0, 2, 3].includes(j) ? 'center' : 'left', indent: j === 1 && sub ? 2 : 0 };
         if (ask) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
       });
       ws.getRow(rn).height = h; rn++;
     }
-    if (!rows.length) { ws.getCell(rn, 2).value = '（この章で載せる語はありません）'; ws.getCell(rn, 2).font = { name: JP, size: 11, color: { argb: 'FF808080' } }; }
+    if (!rows.length) { ws.getCell(rn, 2).value = '（この章で載せる語はありません）'; ws.getCell(rn, 2).font = { name: JP, size: 11, color: { argb: 'FF000000' } }; }
     ws.pageSetup = { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '5:5',
       margins: { left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 } };
     ws.headerFooter.oddFooter = `&C${title}　${name}　&P / &N`;
