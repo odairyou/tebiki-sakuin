@@ -8,7 +8,7 @@ import { matchChapter } from './match.js';
 import { Yomi } from './yomi.js';
 import { writeWork, readWork } from './workbook.js';
 import { readYomiBook } from './settings.js';
-import { checkTobira, writeTobira, mergeKanmatsu, writeKanmatsu, writeHandover, checkOfficer, writeOfficer } from './output.js';
+import { checkTobira, orderTobira, writeTobira, mergeKanmatsu, writeKanmatsu, writeHandover, checkOfficer, writeOfficer } from './output.js';
 
 export const shortOf = title => String(title || '').replace(/^[0-9０-９]+[．.]\s*/, '').replace(/[\\/?*\[\]:]/g, '') || '章';
 const pad = n => String(n).padStart(2, '0');
@@ -62,4 +62,4 @@ export async function makeWork(env, settings, R, och, opt = {}) {
   return { name: `索引作業_${pad(idx)}${meta.short}.xlsx`, buf: res.buf, meta, C, report: res.report, undecided: { up: count(res.up), low: count(res.low) }, rows: res.up.length + res.low.length };
 }
 
-export { checkOfficer, writeOfficer, readWork, checkTobira, writeTobira, mergeKanmatsu, writeKanmatsu, writeHandover, makeAliasK, Sisetsu };
+export { checkOfficer, writeOfficer, readWork, checkTobira, orderTobira, writeTobira, mergeKanmatsu, writeKanmatsu, writeHandover, makeAliasK, Sisetsu };

@@ -75,6 +75,9 @@ button { font: inherit; }
 .row.err .info { color: #7A1E28; }
 .row .dl { grid-row: 1 / span 2; grid-column: 2; }
 .sis { font-size: 13px; color: #5A6573; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 32px; }
+.chk input { width: 18px; height: 18px; margin: 0; accent-color: #1F4E79; flex: none; }
+.chk span { font-weight: 400; font-size: 13px; color: #5A6573; }
 .stack { display: flex; flex-direction: column; gap: 10px; }
 details.list summary { cursor: pointer; color: #1F5F8B; font-size: 13px; }
 .foot { padding-top: 8px; padding-bottom: 32px; display: flex; justify-content: space-between; font-size: 12px; color: #8A94A0; }

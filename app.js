@@ -248,31 +248,60 @@ setupDrop(document.querySelector('[data-input="of-files"]'), async files => {
 });
 
 // ---------- 業者に渡すデータ
+// 最後に入れた扉のExcel。チェックを切り替えたら、入れ直さずにその場で出し直す
+let TOB_LAST = [];
+async function renderTobira(items) {
+  const res = $('out-tob-res'); const env = await getEnv();
+  const sort = $('out-tob-sort').checked;
+  for (const it of items) {
+    if (it.el) it.el.remove();
+    const { f, W } = it; const ch = W.meta.title || W.meta.short || f.name;
+    const c = P.checkTobira(W);
+    if (c.ok) {
+      const name = `業者渡し_扉_${String(W.meta.idx).padStart(2, '0')}${W.meta.short || ''}.xlsx`;
+      const O = P.orderTobira(W, sort);
+      const buf = await P.writeTobira(env.ExcelJS, W, O.rows);
+      const n = O.rows.length;
+      const offLines = O.off.map(o => `${o.text}　p.${o.page}（作業Excelでは「${o.after || '先頭'}」の次にあった）`);
+      let b;
+      if (!O.off.length) {
+        b = box('ok', `${ch}：扉ページを出しました（${n}行）`, [sort ? 'ページ順になっていました（並べ直した行はありません）' : '作業Excelの並びのまま出しました'].map(esc));
+      } else if (sort) {
+        b = box('warn', `${ch}：扉ページを出しました（${n}行）。ページ順に並べ直した行が${O.off.length}行あります`, offLines.slice(0, 10).map(esc));
+      } else {
+        b = box('warn', `${ch}：扉ページを出しました（${n}行）。ページ順になっていない行が${O.off.length}行あります（作業Excelの並びのまま出しました）`, offLines.slice(0, 10).map(esc));
+      }
+      if (offLines.length > 10) b.append(listDetails(`ほかの${offLines.length - 10}行を見る`, offLines.slice(10)));
+      if (sort && O.noNum.length) b.append(listDetails(`ページが数字でない${O.noNum.length}行は、作業Excelの位置のままにしました`, O.noNum));
+      b.append(dlLink(name, buf));
+      it.el = b; res.prepend(b);
+    } else {
+      const lines = [];
+      if (c.undecided.length) lines.push(`まだ決まっていない行が${c.undecided.length}行あるため、出せません`);
+      if (c.asking.length) lines.push(`「役員確認」のままの行が${c.asking.length}行あります（返事が来たら「載せる」か「載せない」に変えてください）`);
+      if (c.noPage.length) lines.push(`「載せる」なのにページが空の行が${c.noPage.length}行あります（あとで入れる場合は「●●」と書いてください）`);
+      const b = box('ng', `${ch}：まだ出せません`, lines.map(esc));
+      if (c.undecided.length) b.append(listDetails(`まだ決まっていない${c.undecided.length}行を見る`, c.undecided.map(r => `${r.row}行目　${r.text}`)));
+      if (c.asking.length) b.append(listDetails(`役員確認の${c.asking.length}行を見る`, c.asking.map(r => `${r.row}行目　${r.text}`)));
+      if (c.noPage.length) b.append(listDetails(`ページが空の${c.noPage.length}行を見る`, c.noPage.map(r => `${r.row}行目　${r.text}`)));
+      it.el = b; res.prepend(b);
+    }
+  }
+}
+$('out-tob-sort').addEventListener('change', () => { if (TOB_LAST.length) renderTobira(TOB_LAST); });
 setupDrop(document.querySelector('[data-input="out-tob"]'), async files => {
   if (!SETTINGS) { alert('先に「設定」で前回の索引を取り込んでください。'); return; }
   const res = $('out-tob-res');
   const env = await getEnv();
+  $('out-tob-sort').checked = true;   // 次の章は、いつも「並べ直す」から始める
+  TOB_LAST = [];
   for (const f of files.filter(isXlsx)) {
     try {
       const W = await P.readWork(env.ExcelJS, (await readFile(f)).data);
-      const c = P.checkTobira(W); const ch = W.meta.title || W.meta.short || f.name;
-      if (c.ok) {
-        const name = `業者渡し_扉_${String(W.meta.idx).padStart(2, '0')}${W.meta.short || ''}.xlsx`;
-        const buf = await P.writeTobira(env.ExcelJS, W);
-        res.prepend(box('ok', `${ch}：扉ページを出しました（${W.up.filter(r => r.dec === '載せる').length}行）`, [], dlLink(name, buf)));
-      } else {
-        const lines = [];
-        if (c.undecided.length) lines.push(`まだ決まっていない行が${c.undecided.length}行あるため、出せません`);
-        if (c.asking.length) lines.push(`「役員確認」のままの行が${c.asking.length}行あります（返事が来たら「載せる」か「載せない」に変えてください）`);
-        if (c.noPage.length) lines.push(`「載せる」なのにページが空の行が${c.noPage.length}行あります（あとで入れる場合は「●●」と書いてください）`);
-        const b = box('ng', `${ch}：まだ出せません`, lines.map(esc));
-        if (c.undecided.length) b.append(listDetails(`まだ決まっていない${c.undecided.length}行を見る`, c.undecided.map(r => `${r.row}行目　${r.text}`)));
-        if (c.asking.length) b.append(listDetails(`役員確認の${c.asking.length}行を見る`, c.asking.map(r => `${r.row}行目　${r.text}`)));
-        if (c.noPage.length) b.append(listDetails(`ページが空の${c.noPage.length}行を見る`, c.noPage.map(r => `${r.row}行目　${r.text}`)));
-        res.prepend(b);
-      }
+      TOB_LAST.push({ f, W });
     } catch (e) { res.prepend(box('ng', `${f.name}：読めませんでした`, [esc(errText(e))])); }
   }
+  await renderTobira(TOB_LAST);
 });
 setupDrop(document.querySelector('[data-input="out-kan"]'), async files => {
   if (!SETTINGS) { alert('先に「設定」で前回の索引を取り込んでください。'); return; }

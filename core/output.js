@@ -14,14 +14,38 @@ export function checkTobira(W) {
   const noPage = W.up.filter(r => isOn(r) && !r.pages.length);
   return { undecided, asking, noPage, ok: !undecided.length && !asking.length && !noPage.length };
 }
-export async function writeTobira(ExcelJS, W) {
+// ---- 扉の並び：主項目を最初のページの順に（副項目は親と一緒に動く。ページが数字でない項目はその位置のまま）
+const firstNum = ps => { const n = (ps || []).filter(p => typeof p === 'number'); return n.length ? Math.min(...n) : null; };
+export function orderTobira(W, sort = true) {
+  const groups = [];
+  for (const r of W.up) { if (!r.sub || !groups.length) groups.push({ main: r, rows: [r] }); else groups[groups.length - 1].rows.push(r); }
+  const G = groups.map(g => ({ ...g, on: g.rows.filter(isOn) })).filter(g => g.on.length);
+  G.forEach(g => { g.key = firstNum(g.main.pages) ?? firstNum(g.on.flatMap(r => r.pages)); });
+  // ページ順から外れている項目＝いちばん長い「ページが減らない並び」に入らない項目（動かす項目が最も少なくなる）
+  const idx = G.map((g, i) => i).filter(i => G[i].key !== null);
+  const keys = idx.map(i => G[i].key);
+  const L = keys.map(() => 1), prv = keys.map(() => -1);
+  for (let a = 0; a < keys.length; a++) for (let b = 0; b < a; b++) if (keys[b] <= keys[a] && L[b] + 1 > L[a]) { L[a] = L[b] + 1; prv[a] = b; }
+  let best = -1; L.forEach((v, a) => { if (best < 0 || v > L[best]) best = a; });
+  const keep = new Set(); for (let a = best; a >= 0; a = prv[a]) keep.add(idx[a]);
+  const off = idx.filter(i => !keep.has(i)).map(i => ({ text: G[i].main.text, page: G[i].key, after: i > 0 ? G[i - 1].main.text : '' }));
+  let order = G;
+  if (sort) {
+    const sorted = idx.map(i => G[i]).sort((x, y) => x.key - y.key);
+    order = G.slice(); idx.forEach((i, k) => { order[i] = sorted[k]; });
+  }
+  const noNum = G.filter(g => g.key === null).map(g => g.main.text);
+  return { rows: order.flatMap(g => g.on), off, noNum, sorted: sort };
+}
+
+export async function writeTobira(ExcelJS, W, rows = W.up.filter(isOn)) {
   const wb = new ExcelJS.Workbook();
   const name = (W.meta.title || W.meta.short || '扉').replace(/[\\/?*\[\]:]/g, '').slice(0, 31);
   const ws = wb.addWorksheet(name);
   ws.getColumn(1).width = 60; ws.getColumn(2).width = 12;
   ws.addRow([W.meta.title || W.meta.short]); ws.getRow(1).font = { bold: true, size: 12 };
   ws.addRow(['項目', 'ページ']); ws.getRow(2).font = { bold: true };
-  for (const r of W.up.filter(isOn)) ws.addRow([r.text, pagesText(r.pages)]);
+  for (const r of rows) ws.addRow([r.text, pagesText(r.pages)]);
   ws.eachRow(r => r.eachCell(c => { c.font = { ...(c.font || {}), name: '游ゴシック' }; }));
   return await wb.xlsx.writeBuffer();
 }
