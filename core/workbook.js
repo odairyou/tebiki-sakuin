@@ -1,7 +1,8 @@
 // 作業Excel（上下2段：上＝扉、下＝巻末）の書き出しと読み戻し
 import { nz } from './pdftext.js';
+import { ratio } from './util.js';
 
-export const TOOL_VER = '1.13';
+export const TOOL_VER = '1.14';
 export const LAB = { ok: '○ 特定', chk: '？ 要確認', ng: '× 見つからず', new: '＋ 新規候補', auto: '－ 自動', head: '－ 親見出し', kari: '△ 仮（施設基準）', claude: '◆ Claude案' };
 const STC = { '○': '375623', '？': '7F6000', '×': 'A61C28', '＋': '1F4E79', '－': '999999', '△': 'C55A11', '◆': '7030A0' };
 const SECC = { '扉': ['1F4E79', 'DDEBF7'], '索引': ['375623', 'E2EFDA'] };
@@ -71,7 +72,7 @@ export async function writeWork(ExcelJS, C, meta, ctx = {}) {
     const newno = !r.sub && (sec === '扉' || r.first) && r.st;
     const p = r.pages || [];
     const vals = [r.st ? sec : null, r.no ?? null, r.text, (sec === '索引' && !r.sub) ? (r.yomi || null) : null, p[0] ?? null, p[1] ?? null, p[2] ?? null,
-      r.st ? (pagesText(r.oldp) || '—') : null, r.prev || null, st || null, r.dec || null, r.note || null, r.memo || null, r.st ? JSON.stringify(r.id) : null];
+      r.st ? (pagesText(r.oldp) || '—') : null, r.prev || null, st || null, r.dec || null, r.note || null, r.memo || null, r.st ? JSON.stringify({ ...r.id, t: r.toolText ?? r.text }) : null];
     vals.forEach((v, j) => {
       const c = ws.getCell(xr, j + 1); c.value = (typeof v === 'string' && /^\d+$/.test(v) && j >= 4 && j <= 6) ? +v : v; c.font = F();
       c.border = { left: thin, right: thin, bottom: thin, top: newno && j > 0 ? thick : thin };
@@ -215,13 +216,32 @@ export function carryOver(up, low, prev) {
   const report = { kept: 0, changed: 0, human: 0, lost: [] };
   const sec = (rows, prevRows) => {
     const key = r => (r.sub ? 'S' : 'M') + nz(r.text);
+    // 前のExcelの行は「ツールが付けた語」（隠し列の t）で突き合わせる。語を手で直していても引き継げるように
+    const toolText = p => (p.id && p.id.t) ? p.id.t : p.text;
+    const pkey = p => (/^[（(]/.test(toolText(p)) ? 'S' : 'M') + nz(toolText(p));
     const pool = new Map();
-    prevRows.forEach((p, i) => { if (p.human) return; const k = key(p); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(i); });
-    const used = new Set();
+    prevRows.forEach((p, i) => { if (p.human) return; const k = pkey(p); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(i); });
+    const used = new Set(), hit = new Map();
     for (const r of rows) {
       const lst = pool.get(key(r)); if (!lst || !lst.length) continue;
-      const i = lst.shift(); used.add(i); const p = prevRows[i];
+      const i = lst.shift(); used.add(i); hit.set(r, i);
+    }
+    // ver1.13までのExcel（t が無い）で語を手で直した行：大文字・小文字だけの違い、または前回Pが同じで語がよく似た行を拾う
+    const low = t => nz(t).toLowerCase();
+    for (const r of rows) {
+      if (hit.has(r)) continue;
+      const i = prevRows.findIndex((p, j) => !used.has(j) && !p.human && !(p.id && p.id.t) && p.sub === r.sub && p.sec === r.sec &&
+        (low(p.text) === low(r.text) || (p.id && r.id && (p.id.op || []).length && JSON.stringify(p.id.op) === JSON.stringify(r.id.op) && ratio(nz(p.text), nz(r.text)) >= 0.6)));
+      if (i >= 0) { used.add(i); hit.set(r, i); }
+    }
+    for (const r of rows) {
+      if (!hit.has(r)) continue;
+      const p = prevRows[hit.get(r)];
       r.dec = p.dec; r.memo = p.memo; report.kept++;
+      if (nz(p.text) !== nz(r.text)) {
+        r.toolText = r.text; r.text = p.text;
+        r.note = `語を手で直した（ツールの語：${r.toolText}）` + (r.note ? '。' + r.note : '');
+      }
       if (r.sec === '索引' && !r.sub && p.yomi && p.yomi !== r.yomi) { r.yomi = p.yomi; r.yflag = []; }
       const toolPrev = p.id ? (p.id.tp || []) : [];
       const same = (a, b) => JSON.stringify(a.map(String)) === JSON.stringify(b.map(String));
